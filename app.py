@@ -76,126 +76,55 @@ def api_get(url, params=None):
     except Exception: pass
     return None
 
-def get_espn_matches(league_code, target_date):
-    date_str = target_date.strftime("%Y%m%d")
-    url = f"https://site.api.espn.com/apis/site/v2/sports/{league_code}/scoreboard"
-    data = api_get(url, params={"dates": date_str, "limit": 50})
-    if not data or not data.get("events"): return []
-    matches = []
-    for event in data.get("events", []):
-        comps = event.get("competitions", [])
-        if not comps: continue
-        competitors = comps[0].get("competitors", [])
-        if len(competitors) < 2: continue
-        home = next((c for c in competitors if c.get("homeAway") == "home"), None)
-        away = next((c for c in competitors if c.get("homeAway") == "away"), None)
-        if home and away:
-            matches.append({
-                "home": home.get("team", {}).get("displayName", ""),
-                "away": away.get("team", {}).get("displayName", "")
-            })
-    return matches
+# --- UI INTERFACE ---
+st.title("🏀 Basketball Monte Carlo Predictor")
+st.markdown("Καλωσήρθατε στην εφαρμογή ανάλυσης αγώνων μπάσκετ με προσομοιώσεις Monte Carlo.")
 
-def _extract_team_name(value):
-    if isinstance(value, str): return value.strip()
-    if isinstance(value, dict):
-        for key in ("name", "clubName", "teamName", "displayName", "internationalName", "shortName"):
-            if value.get(key): return str(value[key]).strip()
-        for key in ("club", "team"):
-            if isinstance(value.get(key), dict):
-                found = _extract_team_name(value[key])
-                if found: return found
-    return ""
+# Sidebar for inputs
+st.sidebar.header("⚙️ Ρυθμίσεις Αγώνα")
+league_choice = st.sidebar.selectbox("Επιλέξτε διοργάνωση:", list(LEAGUES.keys()))
 
-def _parse_game_date(game):
-    for key in ("date", "gameDate", "startDate", "utcDate", "dateTime"):
-        value = game.get(key)
-        if not value: continue
-        if isinstance(value, (int, float)):
-            stamp = value / 1000 if value > 10_000_000_000 else value
-            try: return datetime.fromtimestamp(stamp).date()
-            except Exception: continue
-        if isinstance(value, str):
-            value = value.strip()
-            for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%d/%m/%Y"):
-                try: return datetime.strptime(value, fmt).date()
-                except ValueError: pass
-    return None
+home_team = st.sidebar.text_input("Γηπεδούχος Ομάδα", "Olympiacos Piraeus")
+away_team = st.sidebar.text_input("Φιλοξενώμενη Ομάδα", "Panathinaikos Athens")
 
-def get_euroleague_matches(target_date):
-    season_year = target_date.year if target_date.month >= 7 else target_date.year - 1
-    season_code = f"E{season_year}"
-    url = f"https://api-live.euroleague.net/v2/competitions/E/seasons/{season_code}/games"
-    data = api_get(url, params={"limit": 500})
-    if not data: return []
-    games = data.get("data", []) if isinstance(data, dict) else data
-    if not isinstance(games, list): return []
-    matches = []
-    for game in games:
-        if not isinstance(game, dict): continue
-        game_date = _parse_game_date(game)
-        if game_date != target_date: continue
-        home = _extract_team_name(game.get("local") or game.get("localTeam") or game.get("home"))
-        away = _extract_team_name(game.get("road") or game.get("roadTeam") or game.get("away"))
-        if home and away: matches.append({"home": home, "away": away})
-    return matches
+home_mu = st.sidebar.number_input("Μ.Ο. Πόντων Υπέρ (Γηπεδούχος)", value=83.5)
+home_std = st.sidebar.number_input("Standard Deviation (Γηπεδούχος)", value=7.5)
 
-def _extract_score(value):
-    if isinstance(value, (int, float)): return float(value)
-    if isinstance(value, str):
-        try: return float(value.strip())
-        except ValueError: return None
-    if isinstance(value, dict):
-        for key in ("score", "points", "value"):
-            if value.get(key) is not None: return _extract_score(value[key])
-    return None
+away_mu = st.sidebar.number_input("Μ.Ο. Πόντων Υπέρ (Φιλοξενώμενος)", value=78.5)
+away_std = st.sidebar.number_input("Standard Deviation (Φιλοξενώμενος)", value=7.5)
 
-def _team_match(a, b):
-    na, nb = normalize(a), normalize(b)
-    if not na or not nb: return False
-    if na == nb or na in nb or nb in na: return True
-    return difflib.SequenceMatcher(None, na, nb).ratio() >= 0.78
+line_ou = st.sidebar.number_input("Line Over/Under", value=160.5)
+handicap = st.sidebar.number_input("Handicap (π.χ. -3.5)", value=-3.5)
 
-def _euroleague_completed_games(target_date):
-    season_year = target_date.year if target_date.month >= 7 else target_date.year - 1
-    season_code = f"E{season_year}"
-    url = f"https://api-live.euroleague.net/v2/competitions/E/seasons/{season_code}/games"
-    data = api_get(url, params={"limit": 500})
-    games = data.get("data", []) if isinstance(data, dict) else data
-    if not isinstance(games, list): return []
-    out = []
-    for game in games:
-        if not isinstance(game, dict): continue
-        dt = _parse_game_date(game)
-        home_obj = game.get("local") or game.get("localTeam") or game.get("home")
-        away_obj = game.get("road") or game.get("roadTeam") or game.get("away")
-        home, away = _extract_team_name(home_obj), _extract_team_name(away_obj)
-        home_score = _extract_score((home_obj or {}).get("score") if isinstance(home_obj, dict) else None)
-        away_score = _extract_score((away_obj or {}).get("score") if isinstance(away_obj, dict) else None)
-        if home_score is None: home_score = _extract_score(game.get("localScore", game.get("homeScore")))
-        if away_score is None: away_score = _extract_score(game.get("roadScore", game.get("awayScore")))
-        if dt and dt <= target_date and home and away and home_score is not None and away_score is not None and (home_score + away_score) > 0:
-            out.append({"date": dt, "home": home, "away": away, "home_score": home_score, "away_score": away_score})
-    return out
-
-def _espn_games_range(league_code, start_date, end_date):
-    url = f"https://site.api.espn.com/apis/site/v2/sports/{league_code}/scoreboard"
-    out, seen = [], set()
-    def parse_events(data):
-        parsed = []
-        if not data or not isinstance(data, dict): return parsed
-        for event in data.get("events", []):
-            comps = event.get("competitions", [])
-            if not comps: continue
-            comp = comps[0]
-            status = comp.get("status", {}).get("type", {}).get("completed", False)
-            competitors = comp.get("competitors", [])
-            if len(competitors) < 2: continue
-            home = next((c for c in competitors if c.get("homeAway") == "home"), None)
-            away = next((c for c in competitors if c.get("homeAway") == "away"), None)
-            if not home or not away: continue
-            hs, aws = _extract_score(home.get("score")), _extract_score(away.get("score"))
-            if hs is None or aws is None or hs + aws <= 0 or not status: continue
-            date_text = event.get("date", "")
-            try: game_date = datetime.fromisoformat(date_text.replace("Z", "+00:00")).date()
-            except Exception: continue
+if st.sidebar.button("🚀 Εκτέλεση Προσομοίωσης"):
+    st.info(f"Εκτέλεση προσομοίωσης 500.000 επαναλήψεων για {home_team} vs {away_team}...")
+    
+    # Monte Carlo Logic
+    np.random.seed(42)
+    home_sims = np.random.normal(home_mu, home_std, ITERATIONS)
+    away_sims = np.random.normal(away_mu, away_std, ITERATIONS)
+    
+    home_wins = np.sum(home_sims > away_sims)
+    away_wins = np.sum(home_sims < away_sims)
+    draws = ITERATIONS - home_wins - away_wins
+    
+    p_home = (home_wins / ITERATIONS) * 100
+    p_away = (away_wins / ITERATIONS) * 100
+    
+    total_points = home_sims + away_sims
+    p_over = (np.sum(total_points > line_ou) / ITERATIONS) * 100
+    p_under = 100 - p_over
+    
+    hcp_diff = home_sims - away_sims
+    p_hcp = (np.sum(hcp_diff > abs(handicap)) / ITERATIONS) * 100
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric(f"Νίκη {home_team}", f"{p_home:.1f}%")
+    col2.metric("Ισοπαλία", f"{(draws/ITERATIONS)*100:.1f}%")
+    col3.metric(f"Νίκη {away_team}", f"{p_away:.1f}%")
+    
+    st.success("Η προσομοίωση ολοκληρώθηκε με επιτυχία!")
+    st.write(f"📊 **Over {line_ou} Pi[cite: 1]thanotita:** {p_over:.1f}%")
+    st.write(f"📊 **Under {line_ou} Pithanotita:** {p_under:.1f}%")
+else:
+    st.warning("Πατήστε το κουμπί **'Εκτέλεση Προσομοίωσης'** στην πλαϊνή μπάρα για να τρέξετε τα αποτελέσματα.")
