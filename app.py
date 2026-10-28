@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timedelta
 
 # ============================================================
-# STREAMLIT BASKETBALL MONTE CARLO WEB APP (ULTIMATE ENGINE)
+# STREAMLIT BASKETBALL MONTE CARLO WEB APP (SESSION STATE FIXED)
 # ============================================================
 
 st.set_page_config(
@@ -323,7 +323,11 @@ league = LEAGUES[league_key]
 
 target_date = st.sidebar.date_input("Ημερομηνία Αγώνα", datetime.now().date())
 
-# Αυτόματη εύρεση αγώνων
+# Καθαρισμός session state αν αλλάξουν οι βασικές επιλογές
+if "prev_league" not in st.session_state or st.session_state["prev_league"] != league_key:
+    st.session_state["prev_league"] = league_key
+    if "last_sim_data" in st.session_state: del st.session_state["last_sim_data"]
+
 matches = []
 if league["type"] == "espn":
     matches = get_espn_matches(league["code"], target_date)
@@ -344,7 +348,8 @@ else:
     home_name = st.sidebar.text_input("Γηπεδούχος Ομάδα", "Olympiacos Piraeus")
     away_name = st.sidebar.text_input("Φιλοξενούμενη Ομάδα", "Panathinaikos Athens")
 
-if st.sidebar.button("🔄 Ανάκτηση Στατιστικών Ομάδων"):
+if st.sidebar.button("🔄 Καθαρισμός / Ανανέωση"):
+    if "last_sim_data" in st.session_state: del st.session_state["last_sim_data"]
     st.rerun()
 
 # Φόρτωση στατιστικών ομάδων
@@ -374,10 +379,9 @@ if home_name and away_name:
         "handicap": st.sidebar.number_input("Handicap Odds", value=1.90, min_value=1.01, step=0.01)
     }
 
-   if st.button("🚀 Εκτέλεση Προσομοίωσης Monte Carlo") or st.session_state.get("sim_run", False):
+    if st.button("🚀 Εκτέλεση Προσομοίωσης Monte Carlo") or st.session_state.get("sim_run", False):
         st.session_state["sim_run"] = True
         
-        # An den yparxoun ta dedomena stin mnimi, ta ypoligizoume
         if "last_sim_data" not in st.session_state:
             with st.spinner(f"Εκτέλεση {ITERATIONS:,} προσομοιώσεων... Παρακαλώ περιμένετε."):
                 home_rest = home_stats.get("rest_days", 2)
@@ -406,7 +410,6 @@ if home_name and away_name:
                 sources = sorted(set([home_stats.get("data_source", "στατικά δεδομένα"), away_stats.get("data_source", "στατικά δεδομένα")]))
                 data_source = " + ".join(sources)
 
-                # Apothikefsi stin mnimi tou session
                 st.session_state["last_sim_data"] = {
                     "p_home": p_home, "p_away": p_away, "mu_home": mu_home, "mu_away": mu_away,
                     "p_over": p_over, "p_under": p_under, "p_handicap_home": p_handicap_home,
@@ -415,7 +418,7 @@ if home_name and away_name:
 
         sim = st.session_state["last_sim_data"]
 
-        st.success("Η προσομοίωση είναι έτοιμη!")
+        st.success("Η προσομοίωση ολοκληρώθηκε με επιτυχία!")
         
         col1, col2, col3 = st.columns(3)
         col1.metric(f"Νίκη {home_stats['name']}", f"{sim['p_home']:.1f}%")
@@ -429,7 +432,7 @@ if home_name and away_name:
         col_b.metric(f"Under {line_ou}", f"{sim['p_under']:.1f}%")
         col_c.metric(f"Handicap ({handicap_val:+g})", f"{sim['p_handicap_home']:.1f}%")
 
-        # Value Bets & EV Evaluation
+        # Value Bets & EV Evaluation with Checkboxes (Session State)
         st.markdown("---")
         st.subheader("💡 Επιλογή Value Bets & Αποθήκευση στο Ιστορικό")
         
@@ -506,97 +509,8 @@ if home_name and away_name:
                         saved_count += 1
                     
                     st.success(f"Αποθηκεύτηκαν επιτυχώς {saved_count} επιλογές στο ιστορικό!")
-                    # Katharizoume tin sim state wste stin epomeni allagi na mpori na kanei nea prosomoiwsh an thelei
                     if "last_sim_data" in st.session_state:
                         del st.session_state["last_sim_data"]
-                    st.rerun()
-                else:
-                    st.warning("Δεν έχετε επιλέξει καμία πρόταση προς αποθήκευση.")
-        else:
-            st.info("Δεν βρέθηκαν Value Bets που να ξεπερνούν το όριο EV για αυτόν τον αγώνα.")
-      # Value Bets & EV Evaluation (Direct Checkboxes & Rerun)
-        st.markdown("---")
-        st.subheader("💡 Επιλογή Value Bets & Αποθήκευση στο Ιστορικό")
-        
-        raw_odds_12 = [odds.get("1"), odds.get("2")]
-        fair_probs_12 = [None, None]
-        if all(o is not None and o > 1 for o in raw_odds_12):
-            implied_probs = [1.0 / o for o in raw_odds_12]
-            total_prob = sum(implied_probs)
-            fair_probs_12 = [(p / total_prob) * 100 for p in implied_probs]
-
-        markets = [
-            (f"Νίκη {home_stats['name']} (1)", p_home, odds.get("1"), fair_probs_12[0]),
-            (f"Νίκη {away_stats['name']} (2)", p_away, odds.get("2"), fair_probs_12[1]),
-            (f"Over {line_ou}", p_over, odds.get("over"), None), 
-            (f"Under {line_ou}", p_under, odds.get("under"), None),
-            (f"Handicap {home_stats['name']} ({handicap_val:+g})", p_handicap_home, odds.get("handicap"), None)
-        ]
-
-        valid_value_bets = []
-
-        for market, prob, odd, fair_prob in markets:
-            if prob is None or odd is None or odd <= 1: continue
-            
-            if fair_prob is not None and abs(prob - fair_prob) > MAX_DEVIATION_PCT:
-                continue
-
-            ev = ((prob / 100.0) * odd - 1.0) * 100.0
-            b_val = odd - 1.0
-            p_win = prob / 100.0
-            kelly_full = (b_val * p_win - (1 - p_win)) / b_val if b_val > 0 else 0.0
-            stake = min(max(kelly_full * 0.15 * 100, 0), 2.0)
-
-            if ev > VALUE_THRESHOLD_PCT:
-                valid_value_bets.append({
-                    "market": market,
-                    "prob": prob,
-                    "odd": odd,
-                    "ev": ev,
-                    "stake": stake
-                })
-
-        if valid_value_bets:
-            st.write("Επιλέξτε ποια από τα παρακάτω Value Bets θέλετε να προσθέσετε στο ιστορικό σας:")
-            
-            selected_bets_to_save = []
-            
-            for i, vb in enumerate(valid_value_bets):
-                label = f"🔥 {vb['market']} | Απόδοση: {vb['odd']:.2f} | Πιθανότητα: {vb['prob']:.1f}% | EV: +{vb['ev']:.2f}% | Stake: {vb['stake']:.1f}%"
-                is_checked = st.checkbox(label, value=True, key=f"dir_chk_bet_{i}")
-                if is_checked:
-                    selected_bets_to_save.append(vb)
-
-            if st.button("💾 Αποθήκευση Επιλεγμένων στο Ιστορικό", key="btn_save_dir"):
-                if selected_bets_to_save:
-                    saved_count = 0
-                    for vb in selected_bets_to_save:
-                        bet_entry = {
-                            "created_at": datetime.now().isoformat(),
-                            "game_date": target_date.isoformat(), 
-                            "league": league_key,
-                            "home": home_stats["name"], 
-                            "away": away_stats["name"],
-                            "mu_home": round(mu_home, 2), 
-                            "mu_away": round(mu_away, 2),
-                            "p_home": round(p_home, 3), 
-                            "p_away": round(p_away, 3),
-                            "line_ou": line_ou,
-                            "market": vb["market"], 
-                            "market_odds": vb["odd"], 
-                            "market_prob": vb["prob"],
-                            "ev": vb["ev"], 
-                            "stake": vb["stake"], 
-                            "confidence": confidence,
-                            "data_source": data_source, 
-                            "actual_home": "", 
-                            "actual_away": ""
-                        }
-                        save_prediction(bet_entry)
-                        saved_count += 1
-                    
-                    st.success(f"Αποθηκεύτηκαν επιτυχώς {saved_count} επιλογές!")
-                    # Ananewsh selidas gia na emfanistei amesws sto istoriko parakatw
                     st.rerun()
                 else:
                     st.warning("Δεν έχετε επιλέξει καμία πρόταση προς αποθήκευση.")
