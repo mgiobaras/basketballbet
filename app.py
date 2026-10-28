@@ -469,16 +469,73 @@ if home_name and away_name:
 # --- ΕΛΕΓΧΟΣ ΙΣΤΟΡΙΚΟΥ & ΑΠΟΤΕΛΕΣΜΑΤΩΝ ---
 st.markdown("---")
 st.subheader("📂 Ιστορικό & Αποτελέσματα Στοιχημάτων")
+
 if os.path.exists(HISTORY_FILE):
     with open(HISTORY_FILE, "r", newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
+    
     if rows:
-        st.write(f"Συνολικά αποθηκευμένες προτάσεις στο αρχείο: **{len(rows)}**")
+        st.write(f"Συνολικά αποθηκευμένες προτάσεις: **{len(rows)}**")
+        
+        # --- ENHMERWSH SKOR GIA EKKREMEIS AGWNES ---
+        pending_rows = [r for r in rows if r.get("actual_home", "") == "" or r.get("actual_away", "") == ""]
+        
+        if pending_rows:
+            with st.expander("📝 Εισαγωγή Τελικών Σκόρ για Εκκρεμή Στοιχήματα"):
+                for idx, r in enumerate(pending_rows):
+                    st.write(f"🏀 **{r['game_date']}** | {r['home']} vs {r['away']} | Επιλογή: `{r['market']}`")
+                    col_h, col_a, col_btn = st.columns([2, 2, 2])
+                    
+                    h_score = col_h.number_input(f"Πόντοι {r['home']}", min_value=0, value=0, key=f"h_{idx}")
+                    a_score = col_a.number_input(f"Πόντοι {r['away']}", min_value=0, value=0, key=f"a_{idx}")
+                    
+                    if col_btn.button("💾 Αποθήκευση Σκόρ", key=f"btn_{idx}"):
+                        if h_score > 0 or a_score > 0:
+                            # Enimerwnoume to arxiko rows
+                            for orig_r in rows:
+                                if orig_r == r:
+                                    orig_r["actual_home"] = str(h_score)
+                                    orig_r["actual_away"] = str(a_score)
+                                    break
+                            
+                            # Apothikeush sto CSV
+                            fields = list(rows[0].keys())
+                            with open(HISTORY_FILE, "w", newline="", encoding="utf-8-sig") as f_out:
+                                writer = csv.DictWriter(f_out, fieldnames=fields, extrasaction='ignore')
+                                writer.writeheader()
+                                writer.writerows(rows)
+                            
+                            st.success(f"Το σκόρ {h_score}-{a_score} αποθηκεύτηκε!")
+                            st.rerun()
+
+        # --- EMFANISH PINAKA ME KERDOS/ZHMIA ---
         settled = [r for r in rows if r.get("actual_home", "") != "" and r.get("actual_away", "") != ""]
+        
         if settled:
-            correct = sum([1 for r in settled if evaluate_bet_win(r)])
-            win_rate = (correct / len(settled)) * 100 if settled else 0
-            st.metric("Συνολική Επιτυχία Ολοκληρωμένων", f"{win_rate:.1f}%", f"{correct} / {len(settled)} κερδισμένα")
+            correct = sum([1 for r in settled if evaluate_bet_win(r)]) #
+            win_rate = (correct / len(settled)) * 100
+            
+            st.markdown("### 📊 Πίνακας Ολοκληρωμένων Στοιχημάτων")
+            col_m1, col_m2 = st.columns(2)
+            col_m1.metric("Ποσοστό Επιτυχίας", f"{win_rate:.1f}%")
+            col_m2.metric("Κερδισμένα / Συνολικά", f"{correct} / {len(settled)}")
+            
+            # Dimiourgia pinaka gia kathari emfanisi
+            display_data = []
+            for r in settled:
+                is_won = evaluate_bet_win(r) #[cite: 1]
+                display_data.append({
+                    "Ημερομηνία": r.get("game_date", ""),
+                    "Αγώνας": f"{r.get('home')} - {r.get('away')}",
+                    "Επιλογή": r.get("market", ""),
+                    "Απόδοση": r.get("market_odds", ""),
+                    "Σκόρ": f"{r.get('actual_home')}-{r.get('actual_away')}",
+                    "Κατάσταση": "🟢 ΚΕΡΔΟΣ" if is_won else "🔴 ΧΑΜΕΝΟ"
+                })
+            
+            st.dataframe(display_data, use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν ακόμα ολοκληρωμένα στοιχήματα με καταχωρημένο σκόρ.")
     else:
         st.info("Δεν υπάρχουν ακόμη αποθηκευμένες προτάσεις στο ιστορικό.")
 else:
