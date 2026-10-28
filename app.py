@@ -416,7 +416,7 @@ if home_name and away_name:
         col_b.metric(f"Under {line_ou}", f"{p_under:.1f}%")
         col_c.metric(f"Handicap ({handicap_val:+g})", f"{p_handicap_home:.1f}%")
 
-       # Value Bets & EV Evaluation with Checkboxes (Fixed)
+      # Value Bets & EV Evaluation (Direct Checkboxes & Rerun)
         st.markdown("---")
         st.subheader("💡 Επιλογή Value Bets & Αποθήκευση στο Ιστορικό")
         
@@ -459,50 +459,49 @@ if home_name and away_name:
                 })
 
         if valid_value_bets:
-            st.write("Επιλέξτε ποια από τα παρακάτω Value Bets θέλετε να προσθέσετε στο προσωπικό σας δελτίο / ιστορικό:")
+            st.write("Επιλέξτε ποια από τα παρακάτω Value Bets θέλετε να προσθέσετε στο ιστορικό σας:")
             
-            # Xrhsimopoioume stf.form gia na min xanetai i katastasi stis epiloges
-            with st.form(key="save_bets_form"):
-                selected_bets_to_save = []
-                
-                for i, vb in enumerate(valid_value_bets):
-                    label = f"🔥 {vb['market']} | Απόδοση: {vb['odd']:.2f} | Πιθανότητα: {vb['prob']:.1f}% | EV: +{vb['ev']:.2f}% | Stake: {vb['stake']:.1f}%"
-                    is_checked = st.checkbox(label, value=True, key=f"form_chk_bet_{i}")
-                    if is_checked:
-                        selected_bets_to_save.append(vb)
+            selected_bets_to_save = []
+            
+            for i, vb in enumerate(valid_value_bets):
+                label = f"🔥 {vb['market']} | Απόδοση: {vb['odd']:.2f} | Πιθανότητα: {vb['prob']:.1f}% | EV: +{vb['ev']:.2f}% | Stake: {vb['stake']:.1f}%"
+                is_checked = st.checkbox(label, value=True, key=f"dir_chk_bet_{i}")
+                if is_checked:
+                    selected_bets_to_save.append(vb)
 
-                submit_button = st.form_submit_button(label="💾 Αποθήκευση Επιλεγμένων στο Ιστορικό")
-                
-                if submit_button:
-                    if selected_bets_to_save:
-                        saved_count = 0
-                        for vb in selected_bets_to_save:
-                            bet_entry = {
-                                "created_at": datetime.now().isoformat(),
-                                "game_date": target_date.isoformat(), 
-                                "league": league_key,
-                                "home": home_stats["name"], 
-                                "away": away_stats["name"],
-                                "mu_home": round(mu_home, 2), 
-                                "mu_away": round(mu_away, 2),
-                                "p_home": round(p_home, 3), 
-                                "p_away": round(p_away, 3),
-                                "line_ou": line_ou,
-                                "market": vb["market"], 
-                                "market_odds": vb["odd"], 
-                                "market_prob": vb["prob"],
-                                "ev": vb["ev"], 
-                                "stake": vb["stake"], 
-                                "confidence": confidence,
-                                "data_source": data_source, 
-                                "actual_home": "", 
-                                "actual_away": ""
-                            }
-                            save_prediction(bet_entry)
-                            saved_count += 1
-                        st.success(f"Αποθηκεύτηκαν επιτυχώς {saved_count} επιλογές στο ιστορικό σας! Κάντε κύλιση κάτω για να το δείτε.")
-                    else:
-                        st.warning("Δεν έχετε επιλέξει καμία πρόταση προς αποθήκευση.")
+            if st.button("💾 Αποθήκευση Επιλεγμένων στο Ιστορικό", key="btn_save_dir"):
+                if selected_bets_to_save:
+                    saved_count = 0
+                    for vb in selected_bets_to_save:
+                        bet_entry = {
+                            "created_at": datetime.now().isoformat(),
+                            "game_date": target_date.isoformat(), 
+                            "league": league_key,
+                            "home": home_stats["name"], 
+                            "away": away_stats["name"],
+                            "mu_home": round(mu_home, 2), 
+                            "mu_away": round(mu_away, 2),
+                            "p_home": round(p_home, 3), 
+                            "p_away": round(p_away, 3),
+                            "line_ou": line_ou,
+                            "market": vb["market"], 
+                            "market_odds": vb["odd"], 
+                            "market_prob": vb["prob"],
+                            "ev": vb["ev"], 
+                            "stake": vb["stake"], 
+                            "confidence": confidence,
+                            "data_source": data_source, 
+                            "actual_home": "", 
+                            "actual_away": ""
+                        }
+                        save_prediction(bet_entry)
+                        saved_count += 1
+                    
+                    st.success(f"Αποθηκεύτηκαν επιτυχώς {saved_count} επιλογές!")
+                    # Ananewsh selidas gia na emfanistei amesws sto istoriko parakatw
+                    st.rerun()
+                else:
+                    st.warning("Δεν έχετε επιλέξει καμία πρόταση προς αποθήκευση.")
         else:
             st.info("Δεν βρέθηκαν Value Bets που να ξεπερνούν το όριο EV για αυτόν τον αγώνα.")
 
