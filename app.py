@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timedelta
 
 # ============================================================
-# STREAMLIT BASKETBALL MONTE CARLO WEB APP (SESSION STATE FIXED)
+# STREAMLIT BASKETBALL MONTE CARLO WEB APP (ROI & BANKROLL)
 # ============================================================
 
 st.set_page_config(
@@ -323,7 +323,6 @@ league = LEAGUES[league_key]
 
 target_date = st.sidebar.date_input("Ημερομηνία Αγώνα", datetime.now().date())
 
-# Καθαρισμός session state αν αλλάξουν οι βασικές επιλογές
 if "prev_league" not in st.session_state or st.session_state["prev_league"] != league_key:
     st.session_state["prev_league"] = league_key
     if "last_sim_data" in st.session_state: del st.session_state["last_sim_data"]
@@ -352,7 +351,6 @@ if st.sidebar.button("🔄 Καθαρισμός / Ανανέωση"):
     if "last_sim_data" in st.session_state: del st.session_state["last_sim_data"]
     st.rerun()
 
-# Φόρτωση στατιστικών ομάδων
 if home_name and away_name:
     with st.spinner("Ανάκτηση στατιστικών από API..."):
         home_stats = get_team_stats(home_name, league, target_date)
@@ -432,7 +430,6 @@ if home_name and away_name:
         col_b.metric(f"Under {line_ou}", f"{sim['p_under']:.1f}%")
         col_c.metric(f"Handicap ({handicap_val:+g})", f"{sim['p_handicap_home']:.1f}%")
 
-        # Value Bets & EV Evaluation with Checkboxes (Session State)
         st.markdown("---")
         st.subheader("💡 Επιλογή Value Bets & Αποθήκευση στο Ιστορικό")
         
@@ -517,9 +514,9 @@ if home_name and away_name:
         else:
             st.info("Δεν βρέθηκαν Value Bets που να ξεπερνούν το όριο EV για αυτόν τον αγώνα.")
 
-# --- ΕΛΕΓΧΟΣ ΙΣΤΟΡΙΚΟΥ & ΑΠΟΤΕΛΕΣΜΑΤΩΝ ---
+# --- ΕΛΕΓΧΟΣ ΙΣΤΟΡΙΚΟΥ, ROI & ΜΠΑΝΚΑΣ ---
 st.markdown("---")
-st.subheader("📂 Ιστορικό & Αποτελέσματα Στοιχημάτων")
+st.subheader("📂 Ιστορικό, ROI & Παρακολούθηση Μπάνκας")
 
 if os.path.exists(HISTORY_FILE):
     with open(HISTORY_FILE, "r", newline="", encoding="utf-8-sig") as f:
@@ -562,21 +559,50 @@ if os.path.exists(HISTORY_FILE):
             correct = sum([1 for r in settled if evaluate_bet_win(r)])
             win_rate = (correct / len(settled)) * 100
             
-            st.markdown("### 📊 Πίνακας Ολοκληρωμένων Στοιχημάτων")
-            col_m1, col_m2 = st.columns(2)
-            col_m1.metric("Ποσοστό Επιτυχίας", f"{win_rate:.1f}%")
-            col_m2.metric("Κερδισμένα / Συνολικά", f"{correct} / {len(settled)}")
+            # Ypologismos Mpankas & ROI
+            total_staked = 0.0
+            total_return = 0.0
+            
+            for r in settled:
+                try: stake = float(r.get("stake", 1.0))
+                except ValueError: stake = 1.0
+                try: odds_val = float(r.get("market_odds", 1.90))
+                except ValueError: odds_val = 1.90
+                
+                total_staked += stake
+                if evaluate_bet_win(r):
+                    total_return += stake * odds_val
+                    
+            net_profit = total_return - total_staked
+            roi = (net_profit / total_staked) * 100 if total_staked > 0 else 0.0
+            
+            st.markdown("### 📊 Συνολικά Στατιστικά & Μπάνκα")
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            col_m1.metric("Ποσοστό Επιτυχίας", f"{win_rate:.1f}%", f"{correct} / {len(settled)}")
+            col_m2.metric("Καθάρο Κέρδος/Ζημιά", f"{net_profit:+.2f} μ.")
+            col_m3.metric("ROI (%)", f"{roi:+.2f}%")
+            col_m4.metric("Συνολικό Ποντάρισμα", f"{total_staked:.2f} μ.")
             
             display_data = []
             for r in settled:
                 is_won = evaluate_bet_win(r)
+                try: stake_val = float(r.get("stake", 1.0))
+                except ValueError: stake_val = 1.0
+                try: odd_val = float(r.get("market_odds", 1.90))
+                except ValueError: odd_val = 1.90
+                
+                profit_loss = (stake_val * odd_val - stake_val) if is_won else (-stake_val)
+                bet_roi = (profit_loss / stake_val) * 100 if stake_val > 0 else 0.0
+                
                 display_data.append({
                     "Ημερομηνία": r.get("game_date", ""),
                     "Αγώνας": f"{r.get('home')} - {r.get('away')}",
                     "Επιλογή": r.get("market", ""),
-                    "Απόδοση": r.get("market_odds", ""),
+                    "Απόδοση": f"{odd_val:.2f}",
                     "Σκόρ": f"{r.get('actual_home')}-{r.get('actual_away')}",
-                    "Κατάσταση": "🟢 ΚΕΡΔΟΣ" if is_won else "🔴 ΧΑΜΕΝΟ"
+                    "Κατάσταση": "🟢 ΚΕΡΔΟΣ" if is_won else "🔴 ΧΑΜΕΝΟ",
+                    "Κέρδος/Ζημιά": f"{profit_loss:+.2f} μ.",
+                    "ROI (%)": f"{bet_roi:+.1f}%"
                 })
             
             st.dataframe(display_data, use_container_width=True)
