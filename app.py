@@ -374,48 +374,146 @@ if home_name and away_name:
         "handicap": st.sidebar.number_input("Handicap Odds", value=1.90, min_value=1.01, step=0.01)
     }
 
-    if st.button("🚀 Εκτέλεση Προσομοίωσης Monte Carlo"):
-        with st.spinner(f"Εκτέλεση {ITERATIONS:,} προσομοιώσεων... Παρακαλώ περιμένετε."):
-            home_rest = home_stats.get("rest_days", 2)
-            away_rest = away_stats.get("rest_days", 2)
-            home_rest_mult = 0.97 if home_rest <= 1 else (1.01 if home_rest >= 4 else 1.0)
-            away_rest_mult = 0.95 if away_rest <= 1 else (1.01 if away_rest >= 4 else 1.0)
+   if st.button("🚀 Εκτέλεση Προσομοίωσης Monte Carlo") or st.session_state.get("sim_run", False):
+        st.session_state["sim_run"] = True
+        
+        # An den yparxoun ta dedomena stin mnimi, ta ypoligizoume
+        if "last_sim_data" not in st.session_state:
+            with st.spinner(f"Εκτέλεση {ITERATIONS:,} προσομοιώσεων... Παρακαλώ περιμένετε."):
+                home_rest = home_stats.get("rest_days", 2)
+                away_rest = away_stats.get("rest_days", 2)
+                home_rest_mult = 0.97 if home_rest <= 1 else (1.01 if home_rest >= 4 else 1.0)
+                away_rest_mult = 0.95 if away_rest <= 1 else (1.01 if away_rest >= 4 else 1.0)
 
-            mu_home = max(((home_stats["avg_pf"] + away_stats["avg_pa"]) / 2) * home_rest_mult + 2.0 + home_adjustment, 65.0)
-            mu_away = max(((away_stats["avg_pf"] + home_stats["avg_pa"]) / 2) * away_rest_mult + away_adjustment, 65.0)
-            sigma_home = max((home_stats["std_pf"] + away_stats["std_pa"]) / 2, 5.0)
-            sigma_away = max((away_stats["std_pf"] + home_stats["std_pa"]) / 2, 5.0)
+                mu_home = max(((home_stats["avg_pf"] + away_stats["avg_pa"]) / 2) * home_rest_mult + 2.0 + home_adjustment, 65.0)
+                mu_away = max(((away_stats["avg_pf"] + home_stats["avg_pa"]) / 2) * away_rest_mult + away_adjustment, 65.0)
+                sigma_home = max((home_stats["std_pf"] + away_stats["std_pa"]) / 2, 5.0)
+                sigma_away = max((away_stats["std_pf"] + home_stats["std_pa"]) / 2, 5.0)
 
-            np.random.seed(42)
-            hg = np.clip(np.round(np.random.normal(mu_home, sigma_home, ITERATIONS)), 50, 160)
-            ag = np.clip(np.round(np.random.normal(mu_away, sigma_away, ITERATIONS)), 50, 160)
-            
-            p_home = (np.mean(hg > ag) + 0.5 * np.mean(hg == ag)) * 100
-            p_away = 100.0 - p_home
-            total_pts = hg + ag
-            p_over = float(np.mean(total_pts > line_ou) * 100) if line_ou is not None else None
-            p_under = float(100.0 - p_over) if line_ou is not None else None
-            p_handicap_home = float(np.mean((hg + handicap_val) > ag) * 100) if handicap_val is not None else None
+                np.random.seed(42)
+                hg = np.clip(np.round(np.random.normal(mu_home, sigma_home, ITERATIONS)), 50, 160)
+                ag = np.clip(np.round(np.random.normal(mu_away, sigma_away, ITERATIONS)), 50, 160)
+                
+                p_home = (np.mean(hg > ag) + 0.5 * np.mean(hg == ag)) * 100
+                p_away = 100.0 - p_home
+                total_pts = hg + ag
+                p_over = float(np.mean(total_pts > line_ou) * 100) if line_ou is not None else None
+                p_under = float(100.0 - p_over) if line_ou is not None else None
+                p_handicap_home = float(np.mean((hg + handicap_val) > ag) * 100) if handicap_val is not None else None
 
-            confidence_levels = [home_stats.get("confidence", "ΧΑΜΗΛΗ"), away_stats.get("confidence", "ΧΑΜΗΛΗ")]
-            confidence = "ΥΨΗΛΗ" if all(c == "ΥΨΗΛΗ" for c in confidence_levels) else ("ΜΕΣΑΙΑ" if all(c != "ΧΑΜΗΛΗ" for c in confidence_levels) else "ΧΑΜΗΛΗ")
-            sources = sorted(set([home_stats.get("data_source", "στατικά δεδομένα"), away_stats.get("data_source", "στατικά δεδομένα")]))
-            data_source = " + ".join(sources)
+                confidence_levels = [home_stats.get("confidence", "ΧΑΜΗΛΗ"), away_stats.get("confidence", "ΧΑΜΗΛΗ")]
+                confidence = "ΥΨΗΛΗ" if all(c == "ΥΨΗΛΗ" for c in confidence_levels) else ("ΜΕΣΑΙΑ" if all(c != "ΧΑΜΗΛΗ" for c in confidence_levels) else "ΧΑΜΗΛΗ")
+                sources = sorted(set([home_stats.get("data_source", "στατικά δεδομένα"), away_stats.get("data_source", "στατικά δεδομένα")]))
+                data_source = " + ".join(sources)
 
-        st.success("Η προσομοίωση ολοκληρώθηκε με επιτυχία!")
+                # Apothikefsi stin mnimi tou session
+                st.session_state["last_sim_data"] = {
+                    "p_home": p_home, "p_away": p_away, "mu_home": mu_home, "mu_away": mu_away,
+                    "p_over": p_over, "p_under": p_under, "p_handicap_home": p_handicap_home,
+                    "confidence": confidence, "data_source": data_source
+                }
+
+        sim = st.session_state["last_sim_data"]
+
+        st.success("Η προσομοίωση είναι έτοιμη!")
         
         col1, col2, col3 = st.columns(3)
-        col1.metric(f"Νίκη {home_stats['name']}", f"{p_home:.1f}%")
-        col2.metric("Εκτιμώμενο Σκορ", f"{mu_home:.1f} - {mu_away:.1f}")
-        col3.metric(f"Νίκη {away_stats['name']}", f"{p_away:.1f}%")
+        col1.metric(f"Νίκη {home_stats['name']}", f"{sim['p_home']:.1f}%")
+        col2.metric("Εκτιμώμενο Σκορ", f"{sim['mu_home']:.1f} - {sim['mu_away']:.1f}")
+        col3.metric(f"Νίκη {away_stats['name']}", f"{sim['p_away']:.1f}%")
 
         st.markdown("---")
         st.subheader("📈 Ανάλυση Over/Under & Handicap")
         col_a, col_b, col_c = st.columns(3)
-        col_a.metric(f"Over {line_ou}", f"{p_over:.1f}%")
-        col_b.metric(f"Under {line_ou}", f"{p_under:.1f}%")
-        col_c.metric(f"Handicap ({handicap_val:+g})", f"{p_handicap_home:.1f}%")
+        col_a.metric(f"Over {line_ou}", f"{sim['p_over']:.1f}%")
+        col_b.metric(f"Under {line_ou}", f"{sim['p_under']:.1f}%")
+        col_c.metric(f"Handicap ({handicap_val:+g})", f"{sim['p_handicap_home']:.1f}%")
 
+        # Value Bets & EV Evaluation
+        st.markdown("---")
+        st.subheader("💡 Επιλογή Value Bets & Αποθήκευση στο Ιστορικό")
+        
+        raw_odds_12 = [odds.get("1"), odds.get("2")]
+        fair_probs_12 = [None, None]
+        if all(o is not None and o > 1 for o in raw_odds_12):
+            implied_probs = [1.0 / o for o in raw_odds_12]
+            total_prob = sum(implied_probs)
+            fair_probs_12 = [(p / total_prob) * 100 for p in implied_probs]
+
+        markets = [
+            (f"Νίκη {home_stats['name']} (1)", sim['p_home'], odds.get("1"), fair_probs_12[0]),
+            (f"Νίκη {away_stats['name']} (2)", sim['p_away'], odds.get("2"), fair_probs_12[1]),
+            (f"Over {line_ou}", sim['p_over'], odds.get("over"), None), 
+            (f"Under {line_ou}", sim['p_under'], odds.get("under"), None),
+            (f"Handicap {home_stats['name']} ({handicap_val:+g})", sim['p_handicap_home'], odds.get("handicap"), None)
+        ]
+
+        valid_value_bets = []
+
+        for market, prob, odd, fair_prob in markets:
+            if prob is None or odd is None or odd <= 1: continue
+            
+            if fair_prob is not None and abs(prob - fair_prob) > MAX_DEVIATION_PCT:
+                continue
+
+            ev = ((prob / 100.0) * odd - 1.0) * 100.0
+            b_val = odd - 1.0
+            p_win = prob / 100.0
+            kelly_full = (b_val * p_win - (1 - p_win)) / b_val if b_val > 0 else 0.0
+            stake = min(max(kelly_full * 0.15 * 100, 0), 2.0)
+
+            if ev > VALUE_THRESHOLD_PCT:
+                valid_value_bets.append({
+                    "market": market, "prob": prob, "odd": odd, "ev": ev, "stake": stake
+                })
+
+        if valid_value_bets:
+            st.write("Επιλέξτε ποια από τα παρακάτω Value Bets θέλετε να προσθέσετε στο ιστορικό σας:")
+            
+            selected_bets_to_save = []
+            for i, vb in enumerate(valid_value_bets):
+                label = f"🔥 {vb['market']} | Απόδοση: {vb['odd']:.2f} | Πιθανότητα: {vb['prob']:.1f}% | EV: +{vb['ev']:.2f}% | Stake: {vb['stake']:.1f}%"
+                is_checked = st.checkbox(label, value=True, key=f"session_chk_{i}")
+                if is_checked:
+                    selected_bets_to_save.append(vb)
+
+            if st.button("💾 Αποθήκευση Επιλεγμένων στο Ιστορικό", key="btn_save_session"):
+                if selected_bets_to_save:
+                    saved_count = 0
+                    for vb in selected_bets_to_save:
+                        bet_entry = {
+                            "created_at": datetime.now().isoformat(),
+                            "game_date": target_date.isoformat(), 
+                            "league": league_key,
+                            "home": home_stats["name"], 
+                            "away": away_stats["name"],
+                            "mu_home": round(sim['mu_home'], 2), 
+                            "mu_away": round(sim['mu_away'], 2),
+                            "p_home": round(sim['p_home'], 3), 
+                            "p_away": round(sim['p_away'], 3),
+                            "line_ou": line_ou,
+                            "market": vb["market"], 
+                            "market_odds": vb["odd"], 
+                            "market_prob": vb["prob"],
+                            "ev": vb["ev"], 
+                            "stake": vb["stake"], 
+                            "confidence": sim['confidence'],
+                            "data_source": sim['data_source'], 
+                            "actual_home": "", 
+                            "actual_away": ""
+                        }
+                        save_prediction(bet_entry)
+                        saved_count += 1
+                    
+                    st.success(f"Αποθηκεύτηκαν επιτυχώς {saved_count} επιλογές στο ιστορικό!")
+                    # Katharizoume tin sim state wste stin epomeni allagi na mpori na kanei nea prosomoiwsh an thelei
+                    if "last_sim_data" in st.session_state:
+                        del st.session_state["last_sim_data"]
+                    st.rerun()
+                else:
+                    st.warning("Δεν έχετε επιλέξει καμία πρόταση προς αποθήκευση.")
+        else:
+            st.info("Δεν βρέθηκαν Value Bets που να ξεπερνούν το όριο EV για αυτόν τον αγώνα.")
       # Value Bets & EV Evaluation (Direct Checkboxes & Rerun)
         st.markdown("---")
         st.subheader("💡 Επιλογή Value Bets & Αποθήκευση στο Ιστορικό")
