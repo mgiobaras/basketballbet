@@ -9,50 +9,71 @@ import os
 from datetime import datetime, timedelta
 
 # ============================================================
-# STREAMLIT BASKETBALL MONTE CARLO WEB APP (COMPLETE)
+# STREAMLIT BASKETBALL MONTE CARLO WEB APP (FULL AUTO STATS)
 # ============================================================
 
 st.set_page_config(page_title="Basketball Monte Carlo App", page_icon="🏀", layout="wide")
 
 ITERATIONS = 500_000  
 HISTORY_FILE = "basketball_predictions_history.csv"
-VALUE_THRESHOLD_PCT = 4.99
-MIN_PROB_TO_SAVE = 60.0  
-MAX_DEVIATION_PCT = 15.0 
 
-# --- ΑΥΤΟΜΑΤΗ ΔΗΜΙΟΥΡΓΙΑ ΑΡΧΕΙΟΥ ΙΣΤΟΡΙΚΟΥ ΑΝ ΔΕΝ ΥΠΑΡΧΕΙ ---
-HISTORY_FIELDS = [
-    "created_at", "game_date", "league", "home", "away", "mu_home", "mu_away", 
-    "p_home", "p_away", "line_ou", "p_over", "p_under", "handicap", "p_handicap", 
-    "odds_home", "odds_away", "odds_over", "odds_under", "odds_handicap", 
-    "confidence", "data_source", "actual_home", "actual_away", "market", 
-    "market_odds", "market_prob", "ev", "stake"
-]
-
-if not os.path.exists(HISTORY_FILE):
-    with open(HISTORY_FILE, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=HISTORY_FIELDS)
-        writer.writeheader()
-
-LEAGUES = {
-    "NBA": {"code": "basketball/nba", "type": "espn"},
-    "EuroLeague": {"code": "euroleague", "type": "euroleague"},
-    "Ελλάδα - Basket League": {"code": "basketball/gre", "type": "auto_db"}
+# --- VASH DEDOMENWN ME OMADES KAI STATISTIKA (M.O. & STD AUTOMATISMENA) ---
+TEAMS_DB = {
+    # NBA
+    "Boston Celtics": {"avg_pf": 118.0, "std_pf": 9.0},
+    "LA Lakers": {"avg_pf": 115.0, "std_pf": 9.5},
+    "Golden State Warriors": {"avg_pf": 116.0, "std_pf": 10.0},
+    "Milwaukee Bucks": {"avg_pf": 117.0, "std_pf": 9.5},
+    "Denver Nuggets": {"avg_pf": 114.5, "std_pf": 8.5},
+    "Dallas Mavericks": {"avg_pf": 116.5, "std_pf": 9.5},
+    "Phoenix Suns": {"avg_pf": 113.0, "std_pf": 9.0},
+    "Miami Heat": {"avg_pf": 110.0, "std_pf": 8.0},
+    "Philadelphia 76ers": {"avg_pf": 114.0, "std_pf": 9.0},
+    "New York Knicks": {"avg_pf": 112.5, "std_pf": 8.5},
+    "Chicago Bulls": {"avg_pf": 111.0, "std_pf": 9.0},
+    "Brooklyn Nets": {"avg_pf": 108.5, "std_pf": 9.0},
+    
+    # EuroLeague & Ellada
+    "Real Madrid": {"avg_pf": 86.5, "std_pf": 8.5},
+    "FC Barcelona": {"avg_pf": 82.0, "std_pf": 7.5},
+    "Fenerbahce Beko": {"avg_pf": 83.0, "std_pf": 8.0},
+    "Olympiacos Piraeus": {"avg_pf": 83.5, "std_pf": 7.5},
+    "Panathinaikos Athens": {"avg_pf": 85.0, "std_pf": 8.0},
+    "Anadolu Efes": {"avg_pf": 84.0, "std_pf": 9.0},
+    "Monaco": {"avg_pf": 82.5, "std_pf": 8.0},
+    "Armani Milano": {"avg_pf": 81.0, "std_pf": 8.0},
+    "Baskonia": {"avg_pf": 83.0, "std_pf": 9.5},
+    "Maccabi Tel Aviv": {"avg_pf": 85.5, "std_pf": 9.0},
+    "Partizan": {"avg_pf": 82.0, "std_pf": 8.5},
+    "Crvena Zvezda": {"avg_pf": 80.5, "std_pf": 8.0},
+    "AEK Athens": {"avg_pf": 79.0, "std_pf": 8.5},
+    "Peristeri": {"avg_pf": 76.0, "std_pf": 7.5},
+    "Promitheas Patras": {"avg_pf": 78.0, "std_pf": 8.0},
+    "PAOK": {"avg_pf": 77.0, "std_pf": 8.0},
+    "Aris": {"avg_pf": 75.5, "std_pf": 7.5},
+    "Kolossos Rhodes": {"avg_pf": 76.5, "std_pf": 8.0},
+    "Lavrio": {"avg_pf": 75.0, "std_pf": 8.5},
+    "Maroussi": {"avg_pf": 77.0, "std_pf": 8.5},
+    "Karditsa": {"avg_pf": 74.0, "std_pf": 8.0},
+    "Apollon Patras": {"avg_pf": 72.0, "std_pf": 8.0}
 }
 
-AUTO_TEAMS_DB = {
-    "olympiacos": {"name": "Olympiacos Piraeus", "avg_pf": 83.5, "std_pf": 7.5, "avg_pa": 76.2, "std_pa": 7.0, "rest_days": 3},
-    "panathinaikos": {"name": "Panathinaikos Athens", "avg_pf": 85.0, "std_pf": 8.0, "avg_pa": 78.5, "std_pa": 7.5, "rest_days": 3},
-    "aek": {"name": "AEK Athens", "avg_pf": 79.0, "std_pf": 8.5, "avg_pa": 79.0, "std_pa": 8.0, "rest_days": 4},
-    "real madrid": {"name": "Real Madrid", "avg_pf": 86.5, "std_pf": 8.5, "avg_pa": 80.0, "std_pa": 8.0, "rest_days": 3},
-    "barcelona": {"name": "FC Barcelona", "avg_pf": 82.0, "std_pf": 7.5, "avg_pa": 77.0, "std_pa": 7.0, "rest_days": 3},
-    "fenerbahce": {"name": "Fenerbahce Beko", "avg_pf": 83.0, "std_pf": 8.0, "avg_pa": 77.5, "std_pa": 7.5, "rest_days": 3},
-    "celtics": {"name": "Boston Celtics", "avg_pf": 118.0, "std_pf": 9.0, "avg_pa": 109.0, "std_pa": 8.5, "rest_days": 2},
-    "lakers": {"name": "LA Lakers", "avg_pf": 115.0, "std_pf": 9.5, "avg_pa": 114.0, "std_pa": 9.0, "rest_days": 2},
-    "warriors": {"name": "Golden State Warriors", "avg_pf": 116.0, "std_pf": 10.0, "avg_pa": 113.0, "std_pa": 9.0, "rest_days": 2},
-    "bucks": {"name": "Milwaukee Bucks", "avg_pf": 117.0, "std_pf": 9.5, "avg_pa": 114.0, "std_pa": 9.0, "rest_days": 2},
-    "nuggets": {"name": "Denver Nuggets", "avg_pf": 114.5, "std_pf": 8.5, "avg_pa": 109.5, "std_pa": 8.0, "rest_days": 2},
-    "mavericks": {"name": "Dallas Mavericks", "avg_pf": 116.5, "std_pf": 9.5, "avg_pa": 113.5, "std_pa": 9.0, "rest_days": 2}
+LEAGUES_TEAMS = {
+    "NBA": [
+        "Boston Celtics", "LA Lakers", "Golden State Warriors", "Milwaukee Bucks", 
+        "Denver Nuggets", "Dallas Mavericks", "Phoenix Suns", "Miami Heat", 
+        "Philadelphia 76ers", "New York Knicks", "Chicago Bulls", "Brooklyn Nets"
+    ],
+    "EuroLeague": [
+        "Real Madrid", "FC Barcelona", "Fenerbahce Beko", "Olympiacos Piraeus", 
+        "Panathinaikos Athens", "Anadolu Efes", "Monaco", "Armani Milano", 
+        "Baskonia", "Maccabi Tel Aviv", "Partizan", "Crvena Zvezda"
+    ],
+    "Ellada - Basket League": [
+        "Olympiacos Piraeus", "Panathinaikos Athens", "AEK Athens", "Peristeri", 
+        "Promitheas Patras", "PAOK", "Aris", "Kolossos Rhodes", 
+        "Lavrio", "Maroussi", "Karditsa", "Apollon Patras"
+    ]
 }
 
 session = requests.Session()
@@ -61,43 +82,45 @@ session.headers.update({
     "Accept": "application/json"
 })
 
-def normalize(text):
-    if text is None: return ""
-    text = str(text).lower().strip()
-    text = unicodedata.normalize("NFD", text)
-    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
-    text = re.sub(r"[^a-zA-Z0-9α-ωΑ-Ω\s]", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
-
-def api_get(url, params=None):
-    try:
-        response = session.get(url, params=params, timeout=10)
-        if response.status_code == 200: return response.json()
-    except Exception: pass
-    return None
-
 # --- UI INTERFACE ---
 st.title("🏀 Basketball Monte Carlo Predictor")
-st.markdown("Καλωσήρθατε στην εφαρμογή ανάλυσης αγώνων μπάσκετ με προσομοιώσεις Monte Carlo.")
+st.markdown("Kalsorhsate sthn efarmogh analyshs agwnwn mpasket me prosomoiwseis Monte Carlo.")
 
 # Sidebar for inputs
-st.sidebar.header("⚙️ Ρυθμίσεις Αγώνα")
-league_choice = st.sidebar.selectbox("Επιλέξτε διοργάνωση:", list(LEAGUES.keys()))
+st.sidebar.header("⚙️ Rythmiseis Agwna")
+league_choice = st.sidebar.selectbox("Epilexte diorganwsh:", list(LEAGUES_TEAMS.keys()))
 
-home_team = st.sidebar.text_input("Γηπεδούχος Ομάδα", "Olympiacos Piraeus")
-away_team = st.sidebar.text_input("Φιλοξενώμενη Ομάδα", "Panathinaikos Athens")
+available_teams = LEAGUES_TEAMS[league_choice]
 
-home_mu = st.sidebar.number_input("Μ.Ο. Πόντων Υπέρ (Γηπεδούχος)", value=83.5)
-home_std = st.sidebar.number_input("Standard Deviation (Γηπεδούχος)", value=7.5)
+home_team = st.sidebar.selectbox("Gipedouxos Omada", available_teams, index=0)
+away_team = st.sidebar.selectbox("Filoksenoumenh Omada", available_teams, index=1 if len(available_teams) > 1 else 0)
 
-away_mu = st.sidebar.number_input("Μ.Ο. Πόντων Υπέρ (Φιλοξενώμενος)", value=78.5)
-away_std = st.sidebar.number_input("Standard Deviation (Φιλοξενώμενος)", value=7.5)
+# Pairnoume aythmatws ta stats apo th vash dedomenwn
+home_stats = TEAMS_DB.get(home_team, {"avg_pf": 80.0, "std_pf": 8.0})
+away_stats = TEAMS_DB.get(away_team, {"avg_pf": 80.0, "std_pf": 8.0})
+
+# Emfanizoume tous mesous orous kai to standard deviation xwris na xreiazetai xeirominh allagh (st.write anti gia number_input gia katharh othonh)
+st.sidebar.markdown("---")
+st.sidebar.subheader("📈 Aythmatopoiimena Stats")
+st.sidebar.write(f"🏠 **{home_team}**")
+st.sidebar.write(f"• M.O. Pontwn: `{home_stats['avg_pf']}`")
+st.sidebar.write(f"• Std Deviation: `{home_stats['std_pf']}`")
+
+st.sidebar.write(f"✈️ **{away_team}**")
+st.sidebar.write(f"• M.O. Pontwn: `{away_stats['avg_pf']}`")
+st.sidebar.write(f"• Std Deviation: `{away_stats['std_pf']}`")
+st.sidebar.markdown("---")
+
+home_mu = home_stats["avg_pf"]
+home_std = home_stats["std_pf"]
+away_mu = away_stats["avg_pf"]
+away_std = away_stats["std_pf"]
 
 line_ou = st.sidebar.number_input("Line Over/Under", value=160.5)
-handicap = st.sidebar.number_input("Handicap (π.χ. -3.5)", value=-3.5)
+handicap = st.sidebar.number_input("Handicap (p.x. -3.5)", value=-3.5)
 
-if st.sidebar.button("🚀 Εκτέλεση Προσομοίωσης"):
-    st.info(f"Εκτέλεση προσομοίωσης 500.000 επαναλήψεων για {home_team} vs {away_team}...")
+if st.sidebar.button("🚀 Ektelesh Prosomoiwshs"):
+    st.info(f"Ektelesh prosomoiwshs 500.000 epanalypsewn gia {home_team} vs {away_team}...")
     
     # Monte Carlo Logic
     np.random.seed(42)
@@ -119,12 +142,12 @@ if st.sidebar.button("🚀 Εκτέλεση Προσομοίωσης"):
     p_hcp = (np.sum(hcp_diff > abs(handicap)) / ITERATIONS) * 100
     
     col1, col2, col3 = st.columns(3)
-    col1.metric(f"Νίκη {home_team}", f"{p_home:.1f}%")
-    col2.metric("Ισοπαλία", f"{(draws/ITERATIONS)*100:.1f}%")
-    col3.metric(f"Νίκη {away_team}", f"{p_away:.1f}%")
+    col1.metric(f"Nikh {home_team}", f"{p_home:.1f}%")
+    col2.metric("Isopalia", f"{(draws/ITERATIONS)*100:.1f}%")
+    col3.metric(f"Nikh {away_team}", f"{p_away:.1f}%")
     
-    st.success("Η προσομοίωση ολοκληρώθηκε με επιτυχία!")
-    st.write(f"📊 **Over {line_ou} Pi[cite: 1]thanotita:** {p_over:.1f}%")
+    st.success("H prosomoiwsh oloklhrwthike me epityxia!")
+    st.write(f"📊 **Over {line_ou} Pithanotita:** {p_over:.1f}%")
     st.write(f"📊 **Under {line_ou} Pithanotita:** {p_under:.1f}%")
 else:
-    st.warning("Πατήστε το κουμπί **'Εκτέλεση Προσομοίωσης'** στην πλαϊνή μπάρα για να τρέξετε τα αποτελέσματα.")
+    st.warning("Patiste to koumpi **'Ektelesh Prosomoiwshs'** sthn plainh mpara gia na trexete ta apotelesmata.")
