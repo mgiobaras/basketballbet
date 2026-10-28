@@ -68,6 +68,7 @@ def api_get(url, params=None):
     except Exception: pass
     return None
 
+@st.cache_data(ttl=1800)
 def get_espn_matches(league_code, target_date):
     date_str = target_date.strftime("%Y%m%d")
     url = f"https://site.api.espn.com/apis/site/v2/sports/{league_code}/scoreboard"
