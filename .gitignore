@@ -1,0 +1,9 @@
+__pycache__/
+.venv/
+*.sqlite3
+*.sqlite3-*
+basketball_predictions_history.csv
+.streamlit/secrets.toml
+.env
+.env.*
+!.env.example
