@@ -16,7 +16,7 @@ from personal_access import require_personal_access
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-AUTO1 · app.py')
+st.caption('Έκδοση BASKET-HISTORY2 · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
@@ -171,30 +171,53 @@ with history_tab:
                 if result:
                     store.settle(result)
             records = store.list()
-        settled = [r for r in records if r['status'] != 'pending']
-        decided = [r for r in settled if r['status'] != 'push']
-        if settled:
-            wins = sum(r['status'] == 'won' for r in decided)
-            profit = sum(r['profit'] for r in settled)
-            cols = st.columns(4)
-            cols[0].metric('Επιτυχία (χωρίς επιστροφές)', f'{wins/len(decided):.1%}' if decided else '—')
-            cols[1].metric('Καθαρό κέρδος', f'{profit:+.2f} μονάδες')
-            cols[2].metric('ROI', f'{profit/len(settled):+.1%}')
-            cols[3].metric('Δείγμα', f'{len(decided)} κρίθηκαν · {len(settled)-len(decided)} επιστροφές')
+        all_records = records
+        labels = dict(LEAGUES)
+        for r in all_records:
+            code = r['fixture']['league']
+            if code not in labels.values():
+                labels[code] = code
+        options = ['Σύνολο', *labels]
+        selected_league = st.session_state.get('history_league', 'Σύνολο')
+        if selected_league not in options:
+            selected_league = 'Σύνολο'
+        buttons = st.columns(4)
+        for index, label in enumerate(options):
+            buttons[index % 4].button(label, key='history_filter_'+label,
+                                      type='primary' if selected_league == label else 'secondary',
+                                      on_click=st.session_state.update, args=({'history_league': label},))
+        records = all_records if selected_league == 'Σύνολο' else [r for r in all_records if r['fixture']['league'] == labels[selected_league]]
+        st.caption('Στατιστικά και ιστορικό: '+selected_league)
+        settled = [r for r in records if r['status'] in {'won', 'lost', 'push'}]
+        decided = [r for r in settled if r['status'] in {'won', 'lost'}]
+        wins = sum(r['status'] == 'won' for r in decided)
+        counts = st.columns(4)
+        counts[0].metric('Κερδισμένα', wins)
+        counts[1].metric('Χαμένα', len(decided)-wins)
+        counts[2].metric('Επιστροφές', len(settled)-len(decided))
+        counts[3].metric('Εκκρεμή', sum(r['status'] == 'pending' for r in records))
+        profit = sum(r['profit'] for r in settled)
+        stake = sum(r['stake'] for r in settled)
+        cols = st.columns(4)
+        cols[0].metric('Επιτυχία (χωρίς επιστροφές)', f'{wins/len(decided):.1%}' if decided else '—')
+        cols[1].metric('Καθαρό κέρδος', f'{profit:+.2f} μονάδες')
+        cols[2].metric('ROI', f'{profit/stake:+.1%}' if stake else '—')
+        cols[3].metric('Δείγμα', f'{len(decided)} κρίθηκαν · {len(settled)-len(decided)} επιστροφές')
         if records:
             display = [{'Αγώνας': r['fixture']['teams']['home']['name']+' — '+r['fixture']['teams']['away']['name'],
-                        'Ημερομηνία': r['fixture']['kickoff'], 'Αγορά': MARKETS[r['market']], 'Line': r['line'],
+                        'Ημερομηνία': r['fixture']['kickoff'], 'Αγορά': MARKETS[r['market']],
+                        'Αρχική πιθανότητα μοντέλου': f"{r['probability']['win']:.1%}" if r.get('probability', {}).get('win') is not None else '—', 'Line': r['line'],
                         'Απόδοση': r['odds'], 'Μονάδες': r['stake'], 'Κατάσταση': r['status'], 'Σκορ με παράταση': r['score'],
                         'Κέρδος': r['profit'], 'Πηγή': r['quote']['source'], 'Εταιρεία': r['quote'].get('bookmaker'),
                         'Απουσίες': json.dumps(r['absences'], ensure_ascii=False)} for r in records]
             st.dataframe(display, hide_index=True)
-            st.download_button('Αντίγραφο JSON', json.dumps(records, ensure_ascii=False, indent=2), 'basketball_backup.json', 'application/json')
+            st.download_button('Αντίγραφο όλων των επιλογών JSON', json.dumps(all_records, ensure_ascii=False, indent=2), 'basketball_backup.json', 'application/json')
             buffer = io.StringIO()
             writer = csv.DictWriter(buffer, fieldnames=list(display[0]))
             writer.writeheader(); writer.writerows(display)
             st.download_button('Εξαγωγή CSV', buffer.getvalue().encode('utf-8-sig'), 'basketball_bets.csv', 'text/csv')
         else:
-            st.write('Δεν υπάρχουν νέες αποθηκευμένες επιλογές.')
+            st.write('Δεν υπάρχουν αποθηκευμένες επιλογές για: '+selected_league)
     except (StorageError, DataError, ValueError) as error:
         st.error(str(error))
     st.caption('Εκκαθάριση μόνο σε επιβεβαιωμένο τελικό σκορ μαζί με παράταση. Ισοπαλία στην ακέραια γραμμή σημαίνει επιστροφή. Άγνωστα αποτελέσματα παραμένουν εκκρεμή. Η ενημέρωση δεν εκτελείται όταν η εφαρμογή είναι κλειστή.')
