@@ -27,17 +27,17 @@ def main():
         assert metrics()['Κερδισμένα'] == '2' and metrics()['Χαμένα'] == '1'
         assert set(app.dataframe[0].value['Αρχική πιθανότητα μοντέλου']) == {'64.0%'}
         assert metrics()['Επιστροφές'] == '1' and metrics()['Εκκρεμή'] == '1' and metrics()['ROI'] == '+50.0%'
-        next(b for b in app.button if b.label == 'NBA').click().run()
+        next(w for w in app.selectbox if w.label == 'Προβολή ιστορικού ανά διοργάνωση').select('NBA').run()
         assert metrics()['Επιτυχία (χωρίς επιστροφές)'] == '50.0%' and metrics()['ROI'] == '+0.0%'
-        assert len(app.dataframe[0].value) == 4 and next(b for b in app.button if b.label == 'NBA').proto.type == 'primary'
-        next(b for b in app.button if b.label == 'EuroLeague').click().run()
+        assert len(app.dataframe[0].value) == 4 and next(w for w in app.selectbox if w.label == 'Προβολή ιστορικού ανά διοργάνωση').value == 'NBA'
+        next(w for w in app.selectbox if w.label == 'Προβολή ιστορικού ανά διοργάνωση').select('EuroLeague').run()
         assert metrics()['ROI'] == '+200.0%' and len(app.dataframe[0].value) == 1
-        next(b for b in app.button if b.label == 'Ελλάδα - Basket League').click().run()
+        next(w for w in app.selectbox if w.label == 'Προβολή ιστορικού ανά διοργάνωση').select('Ελλάδα - Basket League').run()
         assert metrics()['Κερδισμένα'] == '0' and metrics()['ROI'] == '—' and not app.dataframe
-        next(b for b in app.button if b.label == 'Σύνολο').click().run()
+        next(w for w in app.selectbox if w.label == 'Προβολή ιστορικού ανά διοργάνωση').select('Σύνολο').run()
         assert metrics()['Κερδισμένα'] == '2' and len(app.dataframe[0].value) == 5
     assert rows == original
-    print('PASS basketball history: league buttons, win/loss/pending/refund counts, ROI, empty league, restore totals, no record changes')
+    print('PASS basketball history: league dropdown, win/loss/pending/refund counts, ROI, empty league, restore totals, no record changes')
 
 
 if __name__ == '__main__':

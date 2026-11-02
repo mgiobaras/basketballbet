@@ -16,7 +16,7 @@ from personal_access import require_personal_access
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-HISTORY2 · app.py')
+st.caption('Έκδοση BASKET-HISTORY3 · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
@@ -180,12 +180,8 @@ with history_tab:
         options = ['Σύνολο', *labels]
         selected_league = st.session_state.get('history_league', 'Σύνολο')
         if selected_league not in options:
-            selected_league = 'Σύνολο'
-        buttons = st.columns(4)
-        for index, label in enumerate(options):
-            buttons[index % 4].button(label, key='history_filter_'+label,
-                                      type='primary' if selected_league == label else 'secondary',
-                                      on_click=st.session_state.update, args=({'history_league': label},))
+            st.session_state['history_league'] = 'Σύνολο'
+        selected_league = st.selectbox('Προβολή ιστορικού ανά διοργάνωση', options, key='history_league')
         records = all_records if selected_league == 'Σύνολο' else [r for r in all_records if r['fixture']['league'] == labels[selected_league]]
         st.caption('Στατιστικά και ιστορικό: '+selected_league)
         settled = [r for r in records if r['status'] in {'won', 'lost', 'push'}]
