@@ -1,0 +1,616 @@
+{
+  "provenance": "Reduced public Paf response from user diagnostic; historical regression data, never a live odds feed.",
+  "requested": {
+    "key": "euroleague:E2026:91",
+    "league": "euroleague",
+    "kickoff": "2026-11-04T19:45:00+00:00",
+    "teams": {
+      "away": {
+        "id": "euroleague:PAN",
+        "name": "Panathinaikos AKTOR Athens"
+      },
+      "home": {
+        "id": "euroleague:MAD",
+        "name": "Real Madrid"
+      }
+    }
+  },
+  "recorded_at": "2026-11-03T13:55:13.526257+00:00",
+  "matched": {
+    "event": {
+      "id": 1028562720,
+      "name": "Real Madrid Baloncesto - Panathinaikos",
+      "nameDelimiter": "-",
+      "englishName": "Real Madrid Baloncesto - Panathinaikos",
+      "homeName": "Real Madrid Baloncesto",
+      "awayName": "Panathinaikos",
+      "start": "2026-11-04T19:45:00Z",
+      "group": "Euroleague",
+      "groupId": 1000093451,
+      "path": [
+        {
+          "id": 1000093204,
+          "name": "Basketball",
+          "englishName": "Basketball",
+          "termKey": "basketball"
+        },
+        {
+          "id": 1000093451,
+          "name": "Euroleague",
+          "englishName": "Euroleague",
+          "termKey": "euroleague"
+        }
+      ],
+      "nonLiveBoCount": 59,
+      "sport": "BASKETBALL",
+      "tags": [
+        "OFFERED_LIVE",
+        "BET_BUILDER",
+        "MATCH"
+      ],
+      "state": "NOT_STARTED"
+    },
+    "betOffers": [
+      {
+        "id": 2711836823,
+        "criterion": {
+          "id": 1001159732,
+          "label": "Moneyline - Including Overtime",
+          "englishLabel": "Moneyline - Including Overtime",
+          "order": [],
+          "occurrenceType": "POINTS",
+          "lifetime": "FULL_TIME_OVERTIME"
+        },
+        "betOfferType": {
+          "id": 2,
+          "name": "Match",
+          "englishName": "Match"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400152466,
+            "label": "Real Madrid Baloncesto",
+            "englishLabel": "Real Madrid Baloncesto",
+            "odds": 1910,
+            "participant": "Real Madrid Baloncesto",
+            "type": "OT_ONE",
+            "betOfferId": 2711836823,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000000362,
+            "oddsFractional": "10/11",
+            "oddsAmerican": "-110",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400152467,
+            "label": "Panathinaikos",
+            "englishLabel": "Panathinaikos",
+            "odds": 1890,
+            "participant": "Panathinaikos",
+            "type": "OT_TWO",
+            "betOfferId": 2711836823,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000087954,
+            "oddsFractional": "22/25",
+            "oddsAmerican": "-113",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "BET_BUILDER",
+          "MAIN"
+        ],
+        "sortOrder": 1,
+        "cashOutStatus": "ENABLED"
+      }
+    ]
+  },
+  "detail_response": {
+    "events": [
+      {
+        "id": 1028562720,
+        "name": "Real Madrid Baloncesto - Panathinaikos",
+        "nameDelimiter": "-",
+        "englishName": "Real Madrid Baloncesto - Panathinaikos",
+        "homeName": "Real Madrid Baloncesto",
+        "awayName": "Panathinaikos",
+        "start": "2026-11-04T19:45:00Z",
+        "group": "Euroleague",
+        "groupId": 1000093451,
+        "path": [
+          {
+            "id": 1000093204,
+            "name": "Basketball",
+            "englishName": "Basketball",
+            "termKey": "basketball"
+          },
+          {
+            "id": 1000093451,
+            "name": "Euroleague",
+            "englishName": "Euroleague",
+            "termKey": "euroleague"
+          }
+        ],
+        "nonLiveBoCount": 59,
+        "sport": "BASKETBALL",
+        "tags": [
+          "OFFERED_LIVE",
+          "BET_BUILDER",
+          "MATCH"
+        ],
+        "state": "NOT_STARTED",
+        "groupSortOrder": 4004000000000000000,
+        "prematchEnd": "2026-11-04T19:45:00Z"
+      }
+    ],
+    "betOffers": [
+      {
+        "id": 2711833880,
+        "criterion": {
+          "id": 1001159512,
+          "label": "Point Spread - Including Overtime",
+          "englishLabel": "Point Spread - Including Overtime",
+          "order": [],
+          "occurrenceType": "POINTS",
+          "lifetime": "FULL_TIME_OVERTIME"
+        },
+        "betOfferType": {
+          "id": 1,
+          "name": "Handicap",
+          "englishName": "Handicap"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400181296,
+            "label": "Real Madrid Baloncesto",
+            "englishLabel": "Real Madrid Baloncesto",
+            "odds": 1430,
+            "line": 5500,
+            "participant": "Real Madrid Baloncesto",
+            "type": "OT_ONE",
+            "betOfferId": 2711833880,
+            "changedDate": "2026-11-02T21:53:24Z",
+            "participantId": 1000000362,
+            "oddsFractional": "21/50",
+            "oddsAmerican": "-235",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400181297,
+            "label": "Panathinaikos",
+            "englishLabel": "Panathinaikos",
+            "odds": 2850,
+            "line": -5500,
+            "participant": "Panathinaikos",
+            "type": "OT_TWO",
+            "betOfferId": 2711833880,
+            "changedDate": "2026-11-02T21:53:24Z",
+            "participantId": 1000087954,
+            "oddsFractional": "37/20",
+            "oddsAmerican": "185",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "BET_BUILDER"
+        ],
+        "cashOutStatus": "ENABLED"
+      },
+      {
+        "id": 2711833881,
+        "criterion": {
+          "id": 1004434007,
+          "label": "First to 25 Points - Including Overtime",
+          "englishLabel": "First to 25 Points - Including Overtime",
+          "order": [
+            25
+          ],
+          "occurrenceType": "POINTS",
+          "lifetime": "FULL_TIME_OVERTIME",
+          "raceToValue": 25
+        },
+        "betOfferType": {
+          "id": 2,
+          "name": "Match",
+          "englishName": "Match"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400181298,
+            "label": "1",
+            "englishLabel": "1",
+            "odds": 1870,
+            "participant": "Real Madrid Baloncesto",
+            "type": "OT_ONE",
+            "betOfferId": 2711833881,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000000362,
+            "oddsFractional": "17/20",
+            "oddsAmerican": "-115",
+            "status": "OPEN",
+            "cashOutStatus": "DISABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400181299,
+            "label": "2",
+            "englishLabel": "2",
+            "odds": 1820,
+            "participant": "Panathinaikos",
+            "type": "OT_TWO",
+            "betOfferId": 2711833881,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000087954,
+            "oddsFractional": "4/5",
+            "oddsAmerican": "-122",
+            "status": "OPEN",
+            "cashOutStatus": "DISABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "BET_BUILDER"
+        ],
+        "cashOutStatus": "DISABLED"
+      },
+      {
+        "id": 2711833899,
+        "criterion": {
+          "id": 1001159576,
+          "label": "Handicap - Quarter 1",
+          "englishLabel": "Handicap - Quarter 1",
+          "order": [],
+          "occurrenceType": "POINTS"
+        },
+        "betOfferType": {
+          "id": 1,
+          "name": "Handicap",
+          "englishName": "Handicap"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400181334,
+            "label": "Real Madrid Baloncesto",
+            "englishLabel": "Real Madrid Baloncesto",
+            "odds": 1790,
+            "line": 500,
+            "participant": "Real Madrid Baloncesto",
+            "type": "OT_ONE",
+            "betOfferId": 2711833899,
+            "changedDate": "2026-11-02T21:53:24Z",
+            "participantId": 1000000362,
+            "oddsFractional": "10/13",
+            "oddsAmerican": "-127",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400181335,
+            "label": "Panathinaikos",
+            "englishLabel": "Panathinaikos",
+            "odds": 1900,
+            "line": -500,
+            "participant": "Panathinaikos",
+            "type": "OT_TWO",
+            "betOfferId": 2711833899,
+            "changedDate": "2026-11-02T21:53:24Z",
+            "participantId": 1000087954,
+            "oddsFractional": "9/10",
+            "oddsAmerican": "-112",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "MAIN_LINE",
+          "BET_BUILDER"
+        ],
+        "cashOutStatus": "ENABLED"
+      },
+      {
+        "id": 2711833902,
+        "criterion": {
+          "id": 1001159802,
+          "label": "Total Points - Quarter 1",
+          "englishLabel": "Total Points - Quarter 1",
+          "order": [],
+          "occurrenceType": "POINTS"
+        },
+        "betOfferType": {
+          "id": 6,
+          "name": "Over/Under",
+          "englishName": "Over/Under"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400181340,
+            "label": "Over",
+            "englishLabel": "Over",
+            "odds": 1850,
+            "line": 42500,
+            "type": "OT_OVER",
+            "betOfferId": 2711833902,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "oddsFractional": "17/20",
+            "oddsAmerican": "-118",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400181341,
+            "label": "Under",
+            "englishLabel": "Under",
+            "odds": 1830,
+            "line": 42500,
+            "type": "OT_UNDER",
+            "betOfferId": 2711833902,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "oddsFractional": "41/50",
+            "oddsAmerican": "-121",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "MAIN_LINE",
+          "BET_BUILDER"
+        ],
+        "cashOutStatus": "ENABLED"
+      },
+      {
+        "id": 2711836820,
+        "criterion": {
+          "id": 1001159509,
+          "label": "Total Points - Including Overtime",
+          "englishLabel": "Total Points - Including Overtime",
+          "order": [],
+          "occurrenceType": "POINTS",
+          "lifetime": "FULL_TIME_OVERTIME"
+        },
+        "betOfferType": {
+          "id": 6,
+          "name": "Over/Under",
+          "englishName": "Over/Under"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400152460,
+            "label": "Over",
+            "englishLabel": "Over",
+            "odds": 1910,
+            "line": 170500,
+            "type": "OT_OVER",
+            "betOfferId": 2711836820,
+            "changedDate": "2026-11-02T05:56:18Z",
+            "oddsFractional": "10/11",
+            "oddsAmerican": "-110",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400152461,
+            "label": "Under",
+            "englishLabel": "Under",
+            "odds": 1890,
+            "line": 170500,
+            "type": "OT_UNDER",
+            "betOfferId": 2711836820,
+            "changedDate": "2026-11-02T05:56:18Z",
+            "oddsFractional": "22/25",
+            "oddsAmerican": "-113",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "MAIN_LINE",
+          "BET_BUILDER"
+        ],
+        "cashOutStatus": "ENABLED"
+      },
+      {
+        "id": 2711836823,
+        "criterion": {
+          "id": 1001159732,
+          "label": "Moneyline - Including Overtime",
+          "englishLabel": "Moneyline - Including Overtime",
+          "order": [],
+          "occurrenceType": "POINTS",
+          "lifetime": "FULL_TIME_OVERTIME"
+        },
+        "betOfferType": {
+          "id": 2,
+          "name": "Match",
+          "englishName": "Match"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400152466,
+            "label": "Real Madrid Baloncesto",
+            "englishLabel": "Real Madrid Baloncesto",
+            "odds": 1910,
+            "participant": "Real Madrid Baloncesto",
+            "type": "OT_ONE",
+            "betOfferId": 2711836823,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000000362,
+            "oddsFractional": "10/11",
+            "oddsAmerican": "-110",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400152467,
+            "label": "Panathinaikos",
+            "englishLabel": "Panathinaikos",
+            "odds": 1890,
+            "participant": "Panathinaikos",
+            "type": "OT_TWO",
+            "betOfferId": 2711836823,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000087954,
+            "oddsFractional": "22/25",
+            "oddsAmerican": "-113",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "BET_BUILDER",
+          "MAIN"
+        ],
+        "cashOutStatus": "ENABLED"
+      },
+      {
+        "id": 2711836824,
+        "closed": "2026-11-04T19:45:00Z",
+        "criterion": {
+          "id": 1001159579,
+          "label": "Total Points by Panathinaikos - 1st Half",
+          "englishLabel": "Total Points by Panathinaikos - 1st Half",
+          "order": []
+        },
+        "betOfferType": {
+          "id": 6,
+          "name": "Over/Under",
+          "englishName": "Over/Under"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400152468,
+            "label": "Over",
+            "englishLabel": "Over",
+            "odds": 2280,
+            "line": 44500,
+            "type": "OT_OVER",
+            "betOfferId": 2711836824,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "oddsFractional": "5/4",
+            "oddsAmerican": "128",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400152469,
+            "label": "Under",
+            "englishLabel": "Under",
+            "odds": 1540,
+            "line": 44500,
+            "type": "OT_UNDER",
+            "betOfferId": 2711836824,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "oddsFractional": "8/15",
+            "oddsAmerican": "-186",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "BET_BUILDER"
+        ],
+        "cashOutStatus": "ENABLED"
+      },
+      {
+        "id": 2711836830,
+        "criterion": {
+          "id": 1001159512,
+          "label": "Point Spread - Including Overtime",
+          "englishLabel": "Point Spread - Including Overtime",
+          "order": [],
+          "occurrenceType": "POINTS",
+          "lifetime": "FULL_TIME_OVERTIME"
+        },
+        "betOfferType": {
+          "id": 1,
+          "name": "Handicap",
+          "englishName": "Handicap"
+        },
+        "eventId": 1028562720,
+        "outcomes": [
+          {
+            "id": 4400152480,
+            "label": "Real Madrid Baloncesto",
+            "englishLabel": "Real Madrid Baloncesto",
+            "odds": 1910,
+            "line": 500,
+            "participant": "Real Madrid Baloncesto",
+            "type": "OT_ONE",
+            "betOfferId": 2711836830,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000000362,
+            "oddsFractional": "10/11",
+            "oddsAmerican": "-110",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 0
+          },
+          {
+            "id": 4400152481,
+            "label": "Panathinaikos",
+            "englishLabel": "Panathinaikos",
+            "odds": 1890,
+            "line": -500,
+            "participant": "Panathinaikos",
+            "type": "OT_TWO",
+            "betOfferId": 2711836830,
+            "changedDate": "2026-11-02T21:53:22Z",
+            "participantId": 1000087954,
+            "oddsFractional": "22/25",
+            "oddsAmerican": "-113",
+            "status": "OPEN",
+            "cashOutStatus": "ENABLED",
+            "displayOrder": 1
+          }
+        ],
+        "tags": [
+          "OFFERED_PREMATCH",
+          "OFFERED_LIVE",
+          "MAIN_LINE",
+          "BET_BUILDER"
+        ],
+        "cashOutStatus": "ENABLED"
+      }
+    ]
+  }
+}

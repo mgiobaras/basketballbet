@@ -275,6 +275,21 @@ class TheOddsAPI:
         return quotes
 
 
+def paf_market_kind(offer):
+    criterion = offer.get('criterion') or {}
+    if not isinstance(criterion, dict) or criterion.get('occurrenceType') not in {None, 'POINTS'}:
+        return None
+    label = name_key(criterion.get('englishLabel') or criterion.get('label', ''))
+    kind = {'including overtime': 'winner', 'moneyline including overtime': 'winner',
+            'handicap including overtime': 'spread', 'point spread including overtime': 'spread',
+            'total points including overtime': 'total'}.get(label)
+    lifetime = criterion.get('lifetime')
+    if lifetime == 'FULL_TIME_OVERTIME':
+        kind = kind or {'moneyline': 'winner', 'match odds': 'winner', 'match': 'winner',
+                        'handicap': 'spread', 'point spread': 'spread', 'total points': 'total'}.get(label)
+    return kind if lifetime in {None, 'FULL_TIME_OVERTIME'} else None
+
+
 def paf_event(row, league):
     """Read Kambi's own home/away orientation, never the displayed @ ordering."""
     event = row.get('event') or {} if isinstance(row, dict) else {}
@@ -295,6 +310,7 @@ def paf_event(row, league):
     pairs = set()
     for offer in row.get('betOffers') or []:
         if (not isinstance(offer, dict) or (offer.get('betOfferType') or {}).get('id') != 2
+                or paf_market_kind(offer) != 'winner'
                 or str(offer.get('eventId')) != str(event['id'])):
             continue
         outcomes = offer.get('outcomes') or []
@@ -329,22 +345,11 @@ def paf_quotes(row, game, receipt, url):
     if native is None or matching(game, [native], exact_time=True) is None:
         return []
     candidates = {}
-    labels = {'including overtime': 'winner', 'moneyline including overtime': 'winner',
-              'handicap including overtime': 'spread', 'point spread including overtime': 'spread',
-              'total points including overtime': 'total'}
     for offer in row.get('betOffers') or []:
         if not isinstance(offer, dict) or str(offer.get('eventId')) != native['id'] or offer.get('suspended'):
             continue
-        criterion = offer.get('criterion') or {}
-        if criterion.get('occurrenceType') not in {None, 'POINTS'}:
-            continue
-        label = name_key(criterion.get('englishLabel') or criterion.get('label', ''))
-        kind = labels.get(label)
-        lifetime = criterion.get('lifetime')
-        if lifetime == 'FULL_TIME_OVERTIME':
-            kind = kind or {'moneyline': 'winner', 'match odds': 'winner', 'match': 'winner',
-                            'handicap': 'spread', 'point spread': 'spread', 'total points': 'total'}.get(label)
-        if kind is None or (lifetime is not None and lifetime != 'FULL_TIME_OVERTIME'):
+        kind = paf_market_kind(offer)
+        if kind is None:
             continue
         outcomes = offer.get('outcomes') or []
         if not isinstance(outcomes, list) or len(outcomes) != 2 or not all(isinstance(o, dict) and o.get('status') == 'OPEN' for o in outcomes):
@@ -814,7 +819,7 @@ class BasketballData:
         def snapshot():
             quotes, errors = load()
             return {'quotes': quotes, 'errors': errors, 'paf_diagnostics': self.paf.diagnostics}
-        result = self.store.cached(f'quotes:v8:{scope}:{game["key"]}:{refresh}', snapshot, 90)
+        result = self.store.cached(f'quotes:v9:{scope}:{game["key"]}:{refresh}', snapshot, 90)
         self.paf.diagnostics = result['paf_diagnostics']
         return result['quotes'], result['errors']
 
