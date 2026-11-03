@@ -156,6 +156,10 @@ def ui_check():
         assert len(app.sidebar.selectbox[0].options) == 3
         assert not app.radio and not any('πηγή' in s.label.lower() for s in app.selectbox)
         assert any(m.label == 'Over 200' and m.value == '1.90' for m in app.metric)
+        assert any(m.label == 'Νίκη Team 1' for m in app.metric)
+        assert any(m.label == 'Νίκη Team 2' for m in app.metric)
+        assert any(m.label == 'Handicap Team 1' for m in app.metric)
+        assert any(m.label == 'Handicap Team 2' for m in app.metric)
         assert all(n.value is None for n in app.number_input)
         next(b for b in app.button if b.label.startswith('Υπολογισμός')).click().run(timeout=30)
         assert not app.exception and app.multiselect[0].options
@@ -169,6 +173,8 @@ def ui_check():
         next(c for c in app.checkbox if c.label.startswith('Χειροκίνητη')).check().run(timeout=30)
         assert not app.exception
         assert all(n.value is None for n in app.number_input)
+        assert any(n.label == 'Απόδοση Νίκη Team 1' for n in app.number_input)
+        assert any(n.label == 'Απόδοση Νίκη Team 2' for n in app.number_input)
     print('PASS UI: all3 competitions, automatic total line/odds, no source selector, manual absences, prediction, immutable save, empty manual fields')
 
 

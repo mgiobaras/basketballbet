@@ -16,7 +16,7 @@ from personal_access import require_personal_access
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-EURO-ODDS3 · app.py')
+st.caption('Έκδοση BASKET-TEAM-NAMES1 · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
@@ -27,6 +27,12 @@ def setting(name, default=''):
         return st.secrets.get(name, default)
     except st.errors.StreamlitSecretNotFoundError:
         return default
+
+
+def market_labels(fixture):
+    home, away = [fixture['teams'][side]['name'] for side in ['home', 'away']]
+    return dict(MARKETS, home=f'Νίκη {home}', away=f'Νίκη {away}',
+                handicap_home=f'Handicap {home}', handicap_away=f'Handicap {away}')
 
 
 url, key = setting('SUPABASE_URL'), setting('SUPABASE_SERVICE_ROLE_KEY')
@@ -66,6 +72,7 @@ with match_tab:
         selected = st.selectbox('Αγώνας', [g['key'] for g in games],
                                 format_func=lambda k: next(g['teams']['home']['name']+' — '+g['teams']['away']['name'] for g in games if g['key'] == k))
         game = next(g for g in games if g['key'] == selected)
+        game_labels = market_labels(game)
         st.caption(f"Έναρξη: {instant(game['kickoff']).astimezone(ZoneInfo('Europe/Athens')).strftime('%d/%m/%Y %H:%M')} · {game['status']}")
         refresh_key = 'refresh:'+game['key']
         if st.button('Ανανέωση αποδόσεων'):
@@ -83,7 +90,7 @@ with match_tab:
         company = st.text_input('Εταιρεία χειροκίνητων αποδόσεων', max_chars=100, key='company:'+game['key']).strip() if manual else ''
         offers = {}
         columns = st.columns(3)
-        for index, (market, label) in enumerate(MARKETS.items()):
+        for index, (market, label) in enumerate(game_labels.items()):
             with columns[index % 3]:
                 q = by_market.get(market)
                 if manual:
@@ -141,12 +148,12 @@ with match_tab:
                     continue
                 distributions[market] = p
                 ev = p['win']*(q['odds']-1)-p['loss']
-                rows.append({'Αγορά': MARKETS[market], 'Line': q['line'], 'Απόδοση': q['odds'],
+                rows.append({'Αγορά': game_labels[market], 'Line': q['line'], 'Απόδοση': q['odds'],
                              'Πιθανότητα νίκης': f"{p['win']:.1%}", 'Επιστροφή': f"{p['push']:.1%}", 'Εκτιμώμενο EV': f'{ev:+.1%}'})
             if rows:
                 st.dataframe(rows, hide_index=True)
             eligible = [m for m in distributions if offers[m]['odds'] >= 1.5]
-            chosen = st.multiselect('Επιλογές για αποθήκευση — 1 μονάδα η καθεμία', eligible, format_func=lambda m: MARKETS[m], key='choices:'+game['key'])
+            chosen = st.multiselect('Επιλογές για αποθήκευση — 1 μονάδα η καθεμία', eligible, format_func=lambda m: game_labels[m], key='choices:'+game['key'])
             can_save = game['status'] == 'NS' and instant(game['kickoff']) > datetime.now(timezone.utc) and (not manual or bool(company))
             if st.button('Αποθήκευση επιλογών', disabled=not chosen or not can_save):
                 try:
@@ -203,7 +210,7 @@ with history_tab:
         cols[3].metric('Δείγμα', f'{len(decided)} κρίθηκαν · {len(settled)-len(decided)} επιστροφές')
         if records:
             display = [{'Αγώνας': r['fixture']['teams']['home']['name']+' — '+r['fixture']['teams']['away']['name'],
-                        'Ημερομηνία': r['fixture']['kickoff'], 'Αγορά': MARKETS[r['market']],
+                        'Ημερομηνία': r['fixture']['kickoff'], 'Αγορά': market_labels(r['fixture'])[r['market']],
                         'Αρχική πιθανότητα μοντέλου': f"{r['probability']['win']:.1%}" if r.get('probability', {}).get('win') is not None else '—', 'Line': r['line'],
                         'Απόδοση': r['odds'], 'Μονάδες': r['stake'], 'Κατάσταση': r['status'], 'Σκορ με παράταση': r['score'],
                         'Κέρδος': r['profit'], 'Πηγή': r['quote']['source'], 'Εταιρεία': r['quote'].get('bookmaker'),

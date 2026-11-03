@@ -95,7 +95,7 @@ def main():
             app = AppTest.from_file(str(Path(__file__).with_name('app.py'))).run(timeout=30)
             assert not app.exception
             assert any(m.label == 'Over 165.5' and m.value == '1.91' for m in app.metric)
-            assert any(m.label == 'Handicap γηπεδούχου -3.5' for m in app.metric)
+            assert any(m.label == 'Handicap REAL MADRID -3.5' for m in app.metric)
         # Failures remain visible, and an unmatched game never requests odds.
         data = BasketballData(Store(directory+'/errors.sqlite3'), http)
         raw['awayTeam']['name'] = 'Unrelated club'
