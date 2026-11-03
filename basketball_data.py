@@ -17,6 +17,7 @@ ALIASES = {'la clippers': 'los angeles clippers', 'la lakers': 'los angeles lake
            'olympiacos piraeus': 'olympiacos', 'olympiacos bc': 'olympiacos',
            'panathinaikos athens': 'panathinaikos', 'panathinaikos aktor athens': 'panathinaikos',
            'panathinaikos bc': 'panathinaikos',
+           'real madrid baloncesto': 'real madrid',
            'fenerbahce beko istanbul': 'fenerbahce', 'fc barcelona': 'barcelona',
            # Explicit EuroLeague/Sofascore spellings, checked against the 2026/27
            # official team directory and the linked Sofascore team pages.
@@ -788,7 +789,7 @@ class BasketballData:
                     errors.append(str(error))
             return quotes, errors
         scope = self.odds.scope if self.odds else 'public'
-        return self.store.cached(f'quotes:v5:{scope}:{game["key"]}:{refresh}', load, 90)
+        return self.store.cached(f'quotes:v6:{scope}:{game["key"]}:{refresh}', load, 90)
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:

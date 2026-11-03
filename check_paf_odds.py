@@ -74,15 +74,18 @@ def main():
 
     # Controlled EuroLeague identity uses the recorded schema/price units above.
     row = deepcopy(RECORDED)
-    row['event'].update(homeName='Real Madrid', awayName='Panathinaikos BC', group='Euroleague',
+    # Names actually returned by Paf in the user's 2026-11-04 diagnostic.
+    row['event'].update(homeName='Real Madrid Baloncesto', awayName='Panathinaikos', group='Euroleague',
                         path=[{'termKey': 'basketball'}, {'termKey': 'euroleague'}],
                         start=(datetime.now(timezone.utc)+timedelta(days=1)).isoformat())
     for offer in row['betOffers']:
         for o in offer['outcomes']:
-            if o['type'] == 'OT_ONE': o.update(englishLabel='Real Madrid', participant='Real Madrid', label='Real Madrid')
-            if o['type'] == 'OT_TWO': o.update(englishLabel='Panathinaikos BC', participant='Panathinaikos BC', label='Panathinaikos BC')
+            if o['type'] == 'OT_ONE': o.update(englishLabel='Real Madrid Baloncesto', participant='Real Madrid Baloncesto', label='Real Madrid Baloncesto')
+            if o['type'] == 'OT_TWO': o.update(englishLabel='Panathinaikos', participant='Panathinaikos', label='Panathinaikos')
     game = paf_event(row, 'euroleague')
     game.update(key='euroleague:E2026:91', source='euroleague', season=2026)
+    game['teams']['home']['name'] = 'Real Madrid'
+    game['teams']['away']['name'] = 'Panathinaikos AKTOR Athens'
     with tempfile.TemporaryDirectory() as directory:
         store = Store(directory+'/cache.sqlite3')
         http = Mock(); http.object.return_value = {'events': [row]}
