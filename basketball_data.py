@@ -394,18 +394,26 @@ class Paf:
 
     def __init__(self, store, http):
         self.store, self.http = store, http
+        self.diagnostics = {}
 
     def quotes(self, game, refresh=0):
         if game['league'] != 'euroleague' or game['status'] != 'NS' or instant(game['kickoff']) <= datetime.now(timezone.utc):
             return [], []
+        self.diagnostics = {'requested': {k: game[k] for k in ['key', 'league', 'kickoff', 'teams']},
+                            'recorded_at': datetime.now(timezone.utc).isoformat()}
         def fetch(url):
-            value = self.http.object(url, self.PARAMS)
+            try:
+                value = self.http.object(url, self.PARAMS)
+            except DataError as error:
+                self.diagnostics['failed_request'] = {'url': url, 'error': str(error)}
+                raise DataError(f'Paf: {str(error)} Αίτημα: {url}') from None
             return {'value': value, 'receipt': datetime.now(timezone.utc).isoformat()}
         listing = self.store.cached(f'paf:list:v1:{refresh}', lambda: fetch(
             self.BASE+'/listView/basketball/all/all/all/matches.json'), 120)
         rows = listing['value'].get('events')
         if not isinstance(rows, list):
             raise DataError('Paf: δεν επιστράφηκε έγκυρη λίστα αγώνων.')
+        self.diagnostics['listing_count'] = len(rows)
         found = [row for row in rows if (native := paf_event(row, 'euroleague')) is not None
                  and matching(game, [native], exact_time=True) is not None]
         if len(found) != 1:
@@ -434,6 +442,7 @@ class Paf:
                             f"{requested.astimezone(ZoneInfo('Europe/Athens')):%d/%m %H:%M}. "
                             f"Η πηγή επέστρεψε {len(rows)} αγώνες. Κοντινές καταχωρίσεις: {samples}.")
         row = found[0]
+        self.diagnostics['matched'] = {'event': row['event'], 'betOffers': (row.get('betOffers') or [])[:50]}
         event_id = row['event']['id']
         url = self.BASE+f'/betoffer/event/{event_id}.json'
         quotes = paf_quotes(row, game, listing['receipt'], self.BASE+'/listView/basketball/all/all/all/matches.json')
@@ -442,6 +451,8 @@ class Paf:
             try:
                 details = self.store.cached(f'paf:event:v1:{event_id}:{refresh}', lambda: fetch(url), 90)
                 value = details['value']
+                self.diagnostics['detail_response'] = {'events': value.get('events'),
+                                                      'betOffers': (value.get('betOffers') or [])[:50]}
                 # If returned, the fresh event metadata must still be the same fixture.
                 fresh_events = value.get('events')
                 if fresh_events is not None:
@@ -800,7 +811,12 @@ class BasketballData:
                     errors.append(str(error))
             return quotes, errors
         scope = self.odds.scope if self.odds else 'public'
-        return self.store.cached(f'quotes:v7:{scope}:{game["key"]}:{refresh}', load, 90)
+        def snapshot():
+            quotes, errors = load()
+            return {'quotes': quotes, 'errors': errors, 'paf_diagnostics': self.paf.diagnostics}
+        result = self.store.cached(f'quotes:v8:{scope}:{game["key"]}:{refresh}', snapshot, 90)
+        self.paf.diagnostics = result['paf_diagnostics']
+        return result['quotes'], result['errors']
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:

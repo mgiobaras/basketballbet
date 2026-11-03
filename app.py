@@ -16,7 +16,7 @@ from personal_access import require_personal_access
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-EURO-ODDS5 · app.py')
+st.caption('Έκδοση BASKET-EURO-ODDS6 · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
@@ -165,6 +165,10 @@ with match_tab:
         with st.expander('Κατάσταση πηγών'):
             for error in dict.fromkeys(data.errors):
                 st.write(error)
+            if data.paf.diagnostics:
+                st.download_button('Λήψη διαγνωστικών Paf',
+                                   json.dumps(data.paf.diagnostics, ensure_ascii=False, indent=2),
+                                   'paf_diagnostics.json', 'application/json')
 
 with history_tab:
     st.subheader('Ιστορικό & αποτελέσματα')

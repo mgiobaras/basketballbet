@@ -111,7 +111,9 @@ def main():
         absent, notes = provider.quotes(game, 21)
         assert not absent and 'δεν υπάρχουν' in notes[0]
         http.object.side_effect = [{'events': [summary]}, DataError('controlled event HTTP403')]
-        assert provider.quotes(game, 4) == ([], ['controlled event HTTP403'])
+        failed, notes = provider.quotes(game, 4)
+        assert not failed and len(notes) == 1 and 'controlled event HTTP403' in notes[0]
+        assert provider.diagnostics['failed_request']['url'].endswith(f'/event/{row["event"]["id"]}.json')
         partial = dict(row, betOffers=[row['betOffers'][1]])
         for index, change in enumerate([{'state': 'STARTED'}, {'start': (datetime.now(timezone.utc)+timedelta(days=3)).isoformat()},
                                         {'homeName': 'Other club'}], 10):
@@ -139,6 +141,13 @@ def main():
         data.odds = Mock(); data.odds.scope = 'controlled'; data.odds.quotes.return_value = []
         found, errors = data.quotes(game)
         assert len(found) == 6 and errors
+        # Diagnostics remain available after the app's cached quote rerun.
+        data.paf.diagnostics = {'failed_request': {'url': 'public-source', 'error': 'controlled HTTP410'}}
+        _, _ = data.quotes(game, 99)
+        cached_data = BasketballData(store, http)
+        cached_data.odds = data.odds
+        cached_data.quotes(game, 99)
+        assert cached_data.paf.diagnostics['failed_request']['error'] == 'controlled HTTP410'
         data.odds.quotes.assert_not_called()
         assert all(store.save(game, q, {'win': .5, 'push': 0., 'loss': .5}, {}, {}) for q in found)
         assert len(store.list()) == 6
