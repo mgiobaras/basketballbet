@@ -449,11 +449,22 @@ class Paf:
                     if len(valid) != 1:
                         quotes = []
                         raise DataError('Paf: αμφίβολη ταυτότητα αγώνα στην απάντηση αποδόσεων.')
-                    row = dict(row, event=valid[0], betOffers=value.get('betOffers') or [])
+                    # The event endpoint can return a partial event. Missing keys
+                    # retain the listing context; explicit new values still win.
+                    previous_event = row['event']
+                    fresh_event = dict(previous_event, **valid[0])
+                    row = dict(row, event=fresh_event, betOffers=value.get('betOffers') or [])
                     fresh_native = paf_event(row, game['league'])
                     if fresh_native is None or matching(game, [fresh_native], exact_time=True) is None:
                         quotes = []
-                        raise DataError('Paf: άλλαξαν οι ομάδες, η ώρα ή η κατάσταση του αγώνα. Οι προηγούμενες αποδόσεις απορρίφθηκαν.')
+                        summary = (f"{fresh_event.get('homeName', '?')} — {fresh_event.get('awayName', '?')} | "
+                                   f"{fresh_event.get('start', '?')} | {fresh_event.get('state', '?')}")
+                        names = sorted({str(o.get('englishLabel') or o.get('participant') or o.get('label'))
+                                        for offer in row['betOffers'] if isinstance(offer, dict)
+                                        for o in offer.get('outcomes') or [] if isinstance(o, dict)
+                                        and o.get('type') in {'OT_ONE', 'OT_TWO'}})
+                        raise DataError('Paf: δεν επιβεβαιώθηκε η ταυτότητα στη δεύτερη απάντηση. '
+                                        f'Στοιχεία πηγής: {summary}. Ομάδες στις αγορές: {", ".join(names[:6]) or "δεν δόθηκαν"}.')
                 detailed = paf_quotes(dict(row, betOffers=value.get('betOffers') or []), game, details['receipt'], url)
                 quotes.extend(q for q in detailed if not any(old['market'] == q['market'] for old in quotes))
             except DataError as error:
@@ -789,7 +800,7 @@ class BasketballData:
                     errors.append(str(error))
             return quotes, errors
         scope = self.odds.scope if self.odds else 'public'
-        return self.store.cached(f'quotes:v6:{scope}:{game["key"]}:{refresh}', load, 90)
+        return self.store.cached(f'quotes:v7:{scope}:{game["key"]}:{refresh}', load, 90)
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:

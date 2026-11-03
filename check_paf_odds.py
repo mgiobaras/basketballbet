@@ -101,6 +101,15 @@ def main():
         detailed, notes = provider.quotes(game, 3)
         assert len(detailed) == 6 and not notes
         assert http.object.call_args.args[0] == Paf.BASE+f'/betoffer/event/{row["event"]["id"]}.json'
+        # A scoped response may repeat only ID/names/start, omitting league/state.
+        sparse = {k: row['event'][k] for k in ['id', 'homeName', 'awayName', 'start']}
+        http.object.side_effect = [{'events': [summary]}, {'events': [sparse], 'betOffers': row['betOffers']}]
+        sparse_quotes, notes = provider.quotes(game, 20)
+        assert len(sparse_quotes) == 6 and not notes
+        # An empty book is reported as unavailable, never as changed teams.
+        http.object.side_effect = [{'events': [summary]}, {'events': [sparse], 'betOffers': []}]
+        absent, notes = provider.quotes(game, 21)
+        assert not absent and 'δεν υπάρχουν' in notes[0]
         http.object.side_effect = [{'events': [summary]}, DataError('controlled event HTTP403')]
         assert provider.quotes(game, 4) == ([], ['controlled event HTTP403'])
         partial = dict(row, betOffers=[row['betOffers'][1]])
