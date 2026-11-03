@@ -280,7 +280,8 @@ def paf_event(row, league):
     if not isinstance(event, dict):
         return None
     groups = {name_key(event.get('group', ''))}
-    groups.update(name_key(p.get('termKey', '')) for p in event.get('path') or [] if isinstance(p, dict))
+    groups.update(name_key(p.get(k, '')) for p in event.get('path') or [] if isinstance(p, dict)
+                  for k in ['termKey', 'englishName', 'name'])
     allowed = {'euroleague': {'euroleague', 'euroleague men'}, 'nba': {'nba'}}
     if (event.get('sport') != 'BASKETBALL' or not groups.intersection(allowed.get(league, set()))
             or event.get('state') != 'NOT_STARTED' or not str(event.get('id', '')).isdigit()):
@@ -407,7 +408,30 @@ class Paf:
         found = [row for row in rows if (native := paf_event(row, 'euroleague')) is not None
                  and matching(game, [native], exact_time=True) is not None]
         if len(found) != 1:
-            raise DataError('Paf: δεν βρέθηκε μοναδική αντιστοίχιση του αγώνα Ευρωλίγκας με ίδιες ομάδες και ώρα.')
+            requested = instant(game['kickoff'])
+            candidates = []
+            for row in rows:
+                event = row.get('event') if isinstance(row, dict) else None
+                if not isinstance(event, dict):
+                    continue
+                try:
+                    start = instant(event['start'])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if start.astimezone(ZoneInfo('Europe/Athens')).date() != requested.astimezone(ZoneInfo('Europe/Athens')).date():
+                    continue
+                score = sum(name_key(event.get(s+'Name', '')) == name_key(game['teams'][s]['name']) for s in ['home', 'away'])
+                native = paf_event(row, 'euroleague')
+                summary = (f"{event.get('homeName', '?')} — {event.get('awayName', '?')} | "
+                           f"{start.astimezone(ZoneInfo('Europe/Athens')):%d/%m %H:%M} | "
+                           f"{event.get('group', '?')} | {event.get('state', '?')} | "
+                           f"{'αναγνωρίστηκε' if native else 'δεν αναγνωρίστηκε'}")
+                candidates.append((-score, abs((start-requested).total_seconds()), summary))
+            samples = '; '.join(v[2] for v in sorted(candidates)[:5]) or 'κανένας αγώνας στην επιλεγμένη ημερομηνία'
+            raise DataError(f"Paf: δεν βρέθηκε μοναδική αντιστοίχιση. Ζητήθηκε: "
+                            f"{game['teams']['home']['name']} — {game['teams']['away']['name']} | "
+                            f"{requested.astimezone(ZoneInfo('Europe/Athens')):%d/%m %H:%M}. "
+                            f"Η πηγή επέστρεψε {len(rows)} αγώνες. Κοντινές καταχωρίσεις: {samples}.")
         row = found[0]
         event_id = row['event']['id']
         url = self.BASE+f'/betoffer/event/{event_id}.json'
@@ -764,7 +788,7 @@ class BasketballData:
                     errors.append(str(error))
             return quotes, errors
         scope = self.odds.scope if self.odds else 'public'
-        return self.store.cached(f'quotes:v4:{scope}:{game["key"]}:{refresh}', load, 90)
+        return self.store.cached(f'quotes:v5:{scope}:{game["key"]}:{refresh}', load, 90)
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:

@@ -35,6 +35,10 @@ RECORDED = {'event': {'id': 1007123461, 'homeName': 'NO Pelicans', 'awayName': '
 def main():
     receipt = datetime.now(timezone.utc).isoformat()
     original = paf_event(RECORDED, 'nba')
+    grouped = deepcopy(RECORDED)
+    grouped['event'].update(group='Regular Season', path=[{'termKey': 'basketball'},
+                           {'termKey': 'competition', 'englishName': 'Euroleague'}])
+    assert paf_event(grouped, 'euroleague') is not None
     assert original['teams']['home']['name'] == 'New Orleans Pelicans'
     assert original['teams']['away']['name'] == 'Portland Trail Blazers'
     parsed = paf_quotes(RECORDED, original, receipt, 'recorded-source')
