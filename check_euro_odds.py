@@ -41,6 +41,27 @@ def main():
         'home': {'id': 'sofascore:3540', 'name': 'Real Madrid'},
         'away': {'id': 'sofascore:3508', 'name': 'Panathinaikos BC'}})
     assert len({name_key(a) for a, _ in TEAMS}) == 20
+    # Actual Paf fixture names provided in the user's Thursday diagnostic.
+    paf_matches = [
+        (('Armani Olimpia Milan', 'Valencia Basket'), ('Milano', 'Valencia Basket Club')),
+        (('LDLC ASVEL Villeurbanne', 'FC Bayern Munich'), ('ASVEL Lyon-Villeurbanne', 'FC Bayern München')),
+        (('Hapoel IBI Tel Aviv', 'FC Barcelona'), ('Hapoel Tel Aviv', 'FC Barcelona')),
+        (('Fenerbahce Tarfin Istanbul', 'Kosner Baskonia Vitoria-Gasteiz'), ('Fenerbahce SK', 'Saski Baskonia')),
+        (('Anadolu Efes Istanbul', 'Paris Basketball'), ('Anadolu Efes', 'Paris Basket'))]
+    for official, provider_names in paf_matches:
+        target, candidate = deepcopy(game), deepcopy(native)
+        for index, side in enumerate(['home', 'away']):
+            target['teams'][side]['name'] = official[index]
+            candidate['teams'][side]['name'] = provider_names[index]
+        assert matching(target, [candidate], exact_time=True) is candidate, official
+        reversed_game = dict(candidate, teams={'home': candidate['teams']['away'], 'away': candidate['teams']['home']})
+        assert matching(target, [reversed_game], exact_time=True) is None
+        for other_official, _ in paf_matches:
+            if other_official == official:
+                continue
+            wrong = deepcopy(candidate)
+            wrong['teams']['home']['name'] = other_official[0]
+            assert matching(target, [wrong], exact_time=True) is None
     for official, sofa in TEAMS:
         assert name_key(official) == name_key(sofa), (official, sofa)
         target, candidate = deepcopy(game), deepcopy(native)

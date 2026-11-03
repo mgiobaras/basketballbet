@@ -92,6 +92,7 @@ def main():
         provider = Paf(store, http)
         offers, notes = provider.quotes(game)
         assert len(offers) == 6 and not notes
+        assert provider.diagnostics['source_events'][0]['homeName'] == 'Real Madrid Baloncesto'
         assert len(provider.quotes(game)[0]) == 6 and http.object.call_count == 1
         assert http.object.call_args.args[0] == Paf.BASE+'/listView/basketball/all/all/all/matches.json'
         assert all(q['source'] == q['bookmaker'] == 'Paf' and q['fixture_key'] == game['key'] for q in offers)

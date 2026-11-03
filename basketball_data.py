@@ -18,6 +18,10 @@ ALIASES = {'la clippers': 'los angeles clippers', 'la lakers': 'los angeles lake
            'panathinaikos athens': 'panathinaikos', 'panathinaikos aktor athens': 'panathinaikos',
            'panathinaikos bc': 'panathinaikos',
            'real madrid baloncesto': 'real madrid',
+           # Additional Paf spellings observed in the 2026-11-05 fixture list.
+           'milano': 'olimpia milano', 'valencia basket club': 'valencia basket',
+           'fc bayern munchen': 'bayern munich', 'fenerbahce sk': 'fenerbahce',
+           'paris basket': 'paris basketball',
            'fenerbahce beko istanbul': 'fenerbahce', 'fc barcelona': 'barcelona',
            # Explicit EuroLeague/Sofascore spellings, checked against the 2026/27
            # official team directory and the linked Sofascore team pages.
@@ -419,6 +423,13 @@ class Paf:
         if not isinstance(rows, list):
             raise DataError('Paf: δεν επιστράφηκε έγκυρη λίστα αγώνων.')
         self.diagnostics['listing_count'] = len(rows)
+        # Keep the actual provider spellings for every fixture so one diagnostic
+        # can verify an entire round, including fixtures that failed matching.
+        event_fields = ['id', 'homeName', 'awayName', 'englishName', 'start', 'group',
+                        'groupId', 'path', 'sport', 'state']
+        self.diagnostics['source_events'] = [
+            {k: row['event'][k] for k in event_fields if k in row['event']}
+            for row in rows if isinstance(row, dict) and isinstance(row.get('event'), dict)]
         found = [row for row in rows if (native := paf_event(row, 'euroleague')) is not None
                  and matching(game, [native], exact_time=True) is not None]
         if len(found) != 1:
@@ -819,7 +830,7 @@ class BasketballData:
         def snapshot():
             quotes, errors = load()
             return {'quotes': quotes, 'errors': errors, 'paf_diagnostics': self.paf.diagnostics}
-        result = self.store.cached(f'quotes:v9:{scope}:{game["key"]}:{refresh}', snapshot, 90)
+        result = self.store.cached(f'quotes:v10:{scope}:{game["key"]}:{refresh}', snapshot, 90)
         self.paf.diagnostics = result['paf_diagnostics']
         return result['quotes'], result['errors']
 
