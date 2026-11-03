@@ -274,6 +274,157 @@ class TheOddsAPI:
         return quotes
 
 
+def paf_event(row, league):
+    """Read Kambi's own home/away orientation, never the displayed @ ordering."""
+    event = row.get('event') or {} if isinstance(row, dict) else {}
+    if not isinstance(event, dict):
+        return None
+    groups = {name_key(event.get('group', ''))}
+    groups.update(name_key(p.get('termKey', '')) for p in event.get('path') or [] if isinstance(p, dict))
+    allowed = {'euroleague': {'euroleague', 'euroleague men'}, 'nba': {'nba'}}
+    if (event.get('sport') != 'BASKETBALL' or not groups.intersection(allowed.get(league, set()))
+            or event.get('state') != 'NOT_STARTED' or not str(event.get('id', '')).isdigit()):
+        return None
+    names = {side: event.get(side+'Name') for side in ['home', 'away']}
+    # Recorded Kambi feeds carry full English labels on typed winner outcomes,
+    # even when homeName/awayName are abbreviations such as NO Pelicans.
+    pairs = set()
+    for offer in row.get('betOffers') or []:
+        if not isinstance(offer, dict) or (offer.get('betOfferType') or {}).get('id') != 2:
+            continue
+        outcomes = offer.get('outcomes') or []
+        if not isinstance(outcomes, list):
+            continue
+        pair = {o.get('type'): o.get('englishLabel') for o in outcomes if isinstance(o, dict)}
+        if all(isinstance(pair.get(t), str) and pair[t].strip() for t in ['OT_ONE', 'OT_TWO']):
+            pairs.add((pair['OT_ONE'], pair['OT_TWO']))
+    if len(pairs) == 1:
+        names = dict(zip(['home', 'away'], pairs.pop()))
+    if not all(isinstance(n, str) and n.strip() for n in names.values()) or name_key(names['home']) == name_key(names['away']):
+        return None
+    try:
+        kickoff = instant(event['start']).isoformat()
+    except (KeyError, TypeError, ValueError):
+        return None
+    return {'key': 'paf:'+str(event['id']), 'id': str(event['id']), 'source': 'paf', 'league': league,
+            'kickoff': kickoff, 'status': 'NS', 'teams': {s: {'id': 'paf:'+s, 'name': names[s]} for s in names}}
+
+
+def paf_quotes(row, game, receipt, url):
+    """Kambi recorded schema: full-time overtime, open two-way main markets."""
+    native = paf_event(row, game['league'])
+    if native is None or matching(game, [native], exact_time=True) is None:
+        return []
+    candidates = {}
+    labels = {'including overtime': 'winner', 'moneyline including overtime': 'winner',
+              'handicap including overtime': 'spread', 'point spread including overtime': 'spread',
+              'total points including overtime': 'total'}
+    for offer in row.get('betOffers') or []:
+        if not isinstance(offer, dict) or str(offer.get('eventId')) != native['id'] or offer.get('suspended'):
+            continue
+        criterion = offer.get('criterion') or {}
+        label = name_key(criterion.get('englishLabel') or criterion.get('label', ''))
+        kind = labels.get(label)
+        lifetime = criterion.get('lifetime')
+        if lifetime == 'FULL_TIME_OVERTIME':
+            kind = kind or {'moneyline': 'winner', 'match odds': 'winner', 'match': 'winner',
+                            'handicap': 'spread', 'point spread': 'spread', 'total points': 'total'}.get(label)
+        if kind is None or (lifetime is not None and lifetime != 'FULL_TIME_OVERTIME'):
+            continue
+        outcomes = offer.get('outcomes') or []
+        if not isinstance(outcomes, list) or len(outcomes) != 2 or not all(isinstance(o, dict) and o.get('status') == 'OPEN' for o in outcomes):
+            continue
+        types = {o.get('type') for o in outcomes}
+        if types != ({'OT_OVER', 'OT_UNDER'} if kind == 'total' else {'OT_ONE', 'OT_TWO'}):
+            continue
+        pair = []
+        for outcome in outcomes:
+            side = {'OT_ONE': 'home', 'OT_TWO': 'away', 'OT_OVER': 'over', 'OT_UNDER': 'under'}[outcome['type']]
+            if kind != 'total':
+                names = [outcome.get(k) for k in ['englishLabel', 'participant', 'label']]
+                if not any(isinstance(n, str) and name_key(n) == name_key(native['teams'][side]['name']) for n in names):
+                    break
+            raw_odds, raw_line = number(outcome.get('odds')), number(outcome.get('line'))
+            if raw_odds is None or not raw_odds.is_integer():
+                break
+            line = None if kind == 'winner' else line_number(raw_line/1000, kind == 'total') if raw_line is not None else None
+            code = 'handicap_'+side if kind == 'spread' else side
+            quote = make_quote(game, code, raw_odds/1000, line, 'Paf', 'Paf', url, receipt)
+            if quote is None:
+                break
+            quote.update(source_fixture_key=native['key'], published_at=outcome.get('changedDate'),
+                         source_market_id=offer.get('id'))
+            pair.append(quote)
+        if len(pair) != 2:
+            continue
+        if kind == 'spread' and pair[0]['line'] != -pair[1]['line']:
+            continue
+        if kind == 'total' and pair[0]['line'] != pair[1]['line']:
+            continue
+        priority = bool({'MAIN', 'MAIN_LINE'}.intersection(offer.get('tags') or []))
+        candidates.setdefault(kind, []).append((priority, pair))
+    quotes = []
+    for values in candidates.values():
+        main = [pair for priority, pair in values if priority]
+        eligible = main or [pair for _, pair in values]
+        # Several distinct lines without a single marked main line are ambiguous.
+        if len(eligible) == 1:
+            quotes.extend(eligible[0])
+    return quotes
+
+
+class Paf:
+    BASE = 'https://eu-offering-api.kambicdn.com/offering/v2018/paf'
+    PARAMS = {'lang': 'en_GB', 'market': 'GB', 'client_id': 2, 'channel_id': 1}
+
+    def __init__(self, store, http):
+        self.store, self.http = store, http
+
+    def quotes(self, game, refresh=0):
+        if game['league'] != 'euroleague' or game['status'] != 'NS' or instant(game['kickoff']) <= datetime.now(timezone.utc):
+            return [], []
+        def fetch(url):
+            value = self.http.object(url, self.PARAMS)
+            return {'value': value, 'receipt': datetime.now(timezone.utc).isoformat()}
+        listing = self.store.cached(f'paf:list:v1:{refresh}', lambda: fetch(
+            self.BASE+'/listView/basketball/all/all/all/matches.json'), 120)
+        rows = listing['value'].get('events')
+        if not isinstance(rows, list):
+            raise DataError('Paf: δεν επιστράφηκε έγκυρη λίστα αγώνων.')
+        found = [row for row in rows if (native := paf_event(row, 'euroleague')) is not None
+                 and matching(game, [native], exact_time=True) is not None]
+        if len(found) != 1:
+            raise DataError('Paf: δεν βρέθηκε μοναδική αντιστοίχιση του αγώνα Ευρωλίγκας με ίδιες ομάδες και ώρα.')
+        row = found[0]
+        event_id = row['event']['id']
+        url = self.BASE+f'/betoffer/event/{event_id}.json'
+        quotes = paf_quotes(row, game, listing['receipt'], self.BASE+'/listView/basketball/all/all/all/matches.json')
+        notes = []
+        if len(quotes) < 6:
+            try:
+                details = self.store.cached(f'paf:event:v1:{event_id}:{refresh}', lambda: fetch(url), 90)
+                value = details['value']
+                # If returned, the fresh event metadata must still be the same fixture.
+                fresh_events = value.get('events')
+                if fresh_events is not None:
+                    valid = [e for e in fresh_events if isinstance(e, dict) and str(e.get('id')) == str(event_id)] if isinstance(fresh_events, list) else []
+                    if len(valid) != 1:
+                        quotes = []
+                        raise DataError('Paf: αμφίβολη ταυτότητα αγώνα στην απάντηση αποδόσεων.')
+                    row = dict(row, event=valid[0], betOffers=value.get('betOffers') or [])
+                    fresh_native = paf_event(row, game['league'])
+                    if fresh_native is None or matching(game, [fresh_native], exact_time=True) is None:
+                        quotes = []
+                        raise DataError('Paf: άλλαξαν οι ομάδες, η ώρα ή η κατάσταση του αγώνα. Οι προηγούμενες αποδόσεις απορρίφθηκαν.')
+                detailed = paf_quotes(dict(row, betOffers=value.get('betOffers') or []), game, details['receipt'], url)
+                quotes.extend(q for q in detailed if not any(old['market'] == q['market'] for old in quotes))
+            except DataError as error:
+                notes.append(str(error))
+        if not quotes and not notes:
+            notes.append('Paf: δεν υπάρχουν επιβεβαιωμένες ανοικτές αγορές πλήρους αγώνα με παράταση και τις αντίστοιχες γραμμές.')
+        return quotes, notes
+
+
 class ESPN:
     source = 'espn'
     def __init__(self, http):
@@ -495,6 +646,7 @@ class BasketballData:
         self.store = store
         self.odds = TheOddsAPI(odds_key, store) if odds_key else None
         http = http or HTTP()
+        self.paf = Paf(store, http)
         self.adapters = {'espn': ESPN(http), 'sofascore': Sofa(http), 'euroleague': Euro(http)}
         self.errors = []
 
@@ -582,6 +734,13 @@ class BasketballData:
                         break
                 except DataError as error:
                     errors.append(str(error))
+            if len({q['market'] for q in quotes}) < 6 and game['league'] == 'euroleague':
+                try:
+                    found, notes = self.paf.quotes(game, refresh)
+                    quotes.extend(q for q in found if not any(old['market'] == q['market'] for old in quotes))
+                    errors.extend(notes)
+                except DataError as error:
+                    errors.append(str(error))
             if len({q['market'] for q in quotes}) < 6 and self.odds and game['league'] in TheOddsAPI.SPORTS:
                 try:
                     found = self.odds.quotes(game, refresh)
@@ -592,7 +751,7 @@ class BasketballData:
                     errors.append(str(error))
             return quotes, errors
         scope = self.odds.scope if self.odds else 'public'
-        return self.store.cached(f'quotes:v3:{scope}:{game["key"]}:{refresh}', load, 90)
+        return self.store.cached(f'quotes:v4:{scope}:{game["key"]}:{refresh}', load, 90)
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:

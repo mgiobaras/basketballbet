@@ -46,6 +46,7 @@ def main():
         # All public sources fail; the optional feed still fills all six markets.
         data = BasketballData(store, odds_key=secret)
         data.odds = source
+        data.paf.quotes = Mock(return_value=([], []))
         for adapter in data.adapters.values():
             adapter.fixtures = Mock(side_effect=DataError('controlled HTTP 403'))
             adapter.quotes = Mock(return_value=([], []))

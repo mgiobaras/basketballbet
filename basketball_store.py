@@ -47,7 +47,7 @@ class Store:
         line = number(quote.get('line'))
         if market not in {'home', 'away'} and (line is None or not (line*2).is_integer() or (market in {'over', 'under'} and line <= 0)):
             raise ValueError('Λείπει η πραγματική γραμμή ή είναι μη έγκυρη.')
-        if quote.get('source') not in {'ESPN', 'Sofascore', 'The Odds API', 'Χειροκίνητη καταχώριση'}:
+        if quote.get('source') not in {'ESPN', 'Sofascore', 'Paf', 'The Odds API', 'Χειροκίνητη καταχώριση'}:
             raise ValueError('Μη έγκυρη πηγή απόδοσης.')
         company = quote.get('bookmaker')
         if not (isinstance(company, str) and company.strip() and len(company) <= 100 and company.isprintable()):
