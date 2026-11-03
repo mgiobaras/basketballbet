@@ -16,7 +16,7 @@ from personal_access import require_personal_access
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-EURO-ODDS1 · app.py')
+st.caption('Έκδοση BASKET-EURO-ODDS2 · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
@@ -48,7 +48,7 @@ except (StorageError, OSError, ValueError) as error:
     st.error(str(error))
     st.stop()
 
-data = BasketballData(store)
+data = BasketballData(store, odds_key=setting('ODDS_API_KEY'))
 match_tab, history_tab = st.tabs(['Αγώνας & επιλογές', 'Ιστορικό & αποτελέσματα'])
 with match_tab:
     league_name = st.sidebar.selectbox('Διοργάνωση', list(LEAGUES))
@@ -103,6 +103,8 @@ with match_tab:
                         st.caption(f"{q['source']} / {company_label} · {q['price_kind']} · λήψη {q['observed_at']}")
         if not offers:
             st.info('Δεν βρέθηκαν επιβεβαιωμένες τιμές με τις αντίστοιχες γραμμές. Τα κενά δεν αντικαθίστανται με 1,90 ή υποθετικά lines.')
+            if league in {'euroleague', 'nba'} and not setting('ODDS_API_KEY'):
+                st.info('Εναλλακτική αυτόματη πηγή: ενεργοποίησε το The Odds API προσθέτοντας ODDS_API_KEY στα Secrets του Streamlit. Διαθέτει δωρεάν πρόγραμμα με όριο χρήσης.')
         st.subheader('Χειροκίνητες απουσίες')
         absences = {}
         for column, side in zip(st.columns(2), ['home', 'away']):

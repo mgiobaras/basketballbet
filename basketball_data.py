@@ -1,6 +1,7 @@
 """Public basketball data adapters and automatic, exact-identity source fallback."""
 from datetime import datetime, timedelta, timezone
 from fractions import Fraction
+import hashlib
 import re
 import unicodedata
 from zoneinfo import ZoneInfo
@@ -190,6 +191,87 @@ class HTTP:
         if not isinstance(data, dict):
             raise DataError('Η πηγή δεν επέστρεψε έγκυρο αντικείμενο δεδομένων.')
         return data
+
+
+class TheOddsAPI:
+    BASE = 'https://api.the-odds-api.com/v4/sports'
+    SPORTS = {'euroleague': 'basketball_euroleague', 'nba': 'basketball_nba'}
+
+    def __init__(self, key, store, transport=None):
+        self.key, self.store = key, store
+        self.scope = hashlib.sha256(key.encode()).hexdigest()
+        self.transport = transport or requests.Session()
+
+    def quotes(self, game, refresh=0):
+        sport = self.SPORTS.get(game['league'])
+        if not sport:
+            return []
+        url = f'{self.BASE}/{sport}/odds'
+        def load():
+            try:
+                response = self.transport.get(url, params={'apiKey': self.key, 'regions': 'eu',
+                    'markets': 'h2h,spreads,totals', 'oddsFormat': 'decimal', 'dateFormat': 'iso'}, timeout=(5, 20))
+            except requests.RequestException:
+                raise DataError('The Odds API: αποτυχία σύνδεσης με την πηγή αποδόσεων.') from None
+            if response.status_code != 200:
+                reason = {401: 'μη έγκυρο κλειδί ή εξαντλημένα credits', 403: 'δεν επιτρέπεται πρόσβαση',
+                          429: 'όριο αιτημάτων ή credits'}.get(response.status_code, 'αποτυχία ανάκτησης')
+                raise DataError(f'The Odds API: HTTP {response.status_code} — {reason}.')
+            try:
+                events = response.json()
+            except ValueError:
+                raise DataError('The Odds API: μη έγκυρο JSON.') from None
+            if not isinstance(events, list):
+                raise DataError('The Odds API: μη έγκυρη λίστα αγώνων.')
+            return {'events': events, 'receipt': datetime.now(timezone.utc).isoformat()}
+        # Share one league feed across fixtures. The key never enters cache payloads.
+        feed = self.store.cached(f'odds_api:v1:{self.scope}:{sport}:{refresh}', load, 120)
+        matches = []
+        for event in feed['events']:
+            if not isinstance(event, dict) or event.get('sport_key') != sport or not event.get('id'):
+                continue
+            try:
+                same = instant(event['commence_time']) == instant(game['kickoff']) and all(
+                    name_key(event[side+'_team']) == name_key(game['teams'][side]['name']) for side in ['home', 'away'])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if same:
+                matches.append(event)
+        if len(matches) != 1:
+            raise DataError('The Odds API: δεν βρέθηκε μοναδική αντιστοίχιση του αγώνα με ίδια διοργάνωση, ομάδες και ώρα.')
+        event, quotes = matches[0], []
+        for book in event.get('bookmakers', []):
+            if not isinstance(book, dict):
+                continue
+            company = book.get('title')
+            if not isinstance(company, str) or not company.strip():
+                continue
+            for market in book.get('markets', []):
+                if not isinstance(market, dict):
+                    continue
+                kind = market.get('key')
+                if kind not in {'h2h', 'spreads', 'totals'}:
+                    continue
+                outcomes = market.get('outcomes', [])
+                # Full-game two-way markets only; never substitute a draw or a period.
+                if not isinstance(outcomes, list) or len(outcomes) != 2 or not all(isinstance(o, dict) for o in outcomes):
+                    continue
+                labels = {name_key(o.get('name', '')) for o in outcomes}
+                expected = {'over', 'under'} if kind == 'totals' else {name_key(event[s+'_team']) for s in ['home', 'away']}
+                if labels != expected:
+                    continue
+                for outcome in outcomes:
+                    label = name_key(outcome['name'])
+                    side = label if kind == 'totals' else 'home' if label == name_key(event['home_team']) else 'away'
+                    code = side if kind != 'spreads' else 'handicap_'+side
+                    price = number(outcome.get('price'))
+                    line = None if kind == 'h2h' else line_number(outcome.get('point'), kind == 'totals')
+                    q = make_quote(game, code, price, line, company.strip(), 'The Odds API', url, feed['receipt'])
+                    if q:
+                        q.update(source_fixture_key='the_odds_api:'+event['id'],
+                                 published_at=market.get('last_update', book.get('last_update')))
+                        quotes.append(q)
+        return quotes
 
 
 class ESPN:
@@ -409,8 +491,9 @@ class Euro:
 
 
 class BasketballData:
-    def __init__(self, store, http=None):
+    def __init__(self, store, http=None, odds_key=''):
         self.store = store
+        self.odds = TheOddsAPI(odds_key, store) if odds_key else None
         http = http or HTTP()
         self.adapters = {'espn': ESPN(http), 'sofascore': Sofa(http), 'euroleague': Euro(http)}
         self.errors = []
@@ -499,8 +582,17 @@ class BasketballData:
                         break
                 except DataError as error:
                     errors.append(str(error))
+            if len({q['market'] for q in quotes}) < 6 and self.odds and game['league'] in TheOddsAPI.SPORTS:
+                try:
+                    found = self.odds.quotes(game, refresh)
+                    quotes.extend(q for q in found if not any(old['market'] == q['market'] for old in quotes))
+                    if not found:
+                        errors.append('The Odds API: δεν υπάρχουν δημοσιευμένες αποδόσεις για τον αγώνα.')
+                except DataError as error:
+                    errors.append(str(error))
             return quotes, errors
-        return self.store.cached(f'quotes:v2:{game["key"]}:{refresh}', load, 90)
+        scope = self.odds.scope if self.odds else 'public'
+        return self.store.cached(f'quotes:v3:{scope}:{game["key"]}:{refresh}', load, 90)
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:
