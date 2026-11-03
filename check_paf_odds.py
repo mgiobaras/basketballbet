@@ -18,13 +18,13 @@ RECORDED = {'event': {'id': 1007123461, 'homeName': 'NO Pelicans', 'awayName': '
     {'id': 2249950592, 'eventId': 1007123461, 'closed': '2021-02-18T02:10:00Z',
      'criterion': {'englishLabel': 'Handicap - Including Overtime', 'lifetime': 'FULL_TIME_OVERTIME'},
      'betOfferType': {'id': 1}, 'tags': ['OFFERED_PREMATCH', 'MAIN_LINE'], 'outcomes': [
-         {'type': 'OT_ONE', 'englishLabel': 'New Orleans Pelicans', 'odds': 1900, 'line': -4000, 'status': 'OPEN'},
-         {'type': 'OT_TWO', 'englishLabel': 'Portland Trail Blazers', 'odds': 1920, 'line': 4000, 'status': 'OPEN'}]},
+         {'type': 'OT_ONE', 'englishLabel': 'New Orleans Pelicans', 'participant': 'NO Pelicans', 'label': 'NO Pelicans', 'odds': 1900, 'line': -4000, 'status': 'OPEN'},
+         {'type': 'OT_TWO', 'englishLabel': 'Portland Trail Blazers', 'participant': 'POR Trail Blazers', 'label': 'POR Trail Blazers', 'odds': 1920, 'line': 4000, 'status': 'OPEN'}]},
     {'id': 2249950614, 'eventId': 1007123461, 'closed': '2021-02-18T02:10:00Z',
      'criterion': {'englishLabel': 'Including Overtime', 'lifetime': 'FULL_TIME_OVERTIME'},
      'betOfferType': {'id': 2}, 'tags': ['OFFERED_PREMATCH', 'MAIN'], 'outcomes': [
-         {'type': 'OT_ONE', 'englishLabel': 'New Orleans Pelicans', 'odds': 1610, 'status': 'OPEN'},
-         {'type': 'OT_TWO', 'englishLabel': 'Portland Trail Blazers', 'odds': 2380, 'status': 'OPEN'}]},
+         {'type': 'OT_ONE', 'englishLabel': 'New Orleans Pelicans', 'participant': 'NO Pelicans', 'label': 'NO Pelicans', 'odds': 1610, 'status': 'OPEN'},
+         {'type': 'OT_TWO', 'englishLabel': 'Portland Trail Blazers', 'participant': 'POR Trail Blazers', 'label': 'POR Trail Blazers', 'odds': 2380, 'status': 'OPEN'}]},
     {'id': 2249950534, 'eventId': 1007123461, 'closed': '2021-02-18T02:10:00Z',
      'criterion': {'englishLabel': 'Total Points - Including Overtime', 'lifetime': 'FULL_TIME_OVERTIME'},
      'betOfferType': {'id': 6}, 'tags': ['OFFERED_PREMATCH', 'MAIN_LINE'], 'outcomes': [
@@ -41,6 +41,14 @@ def main():
     assert {q['market']: (q['line'], q['odds']) for q in parsed} == {
         'handicap_home': (-4., 1.9), 'handicap_away': (4., 1.92), 'home': (None, 1.61),
         'away': (None, 2.38), 'over': (237., 1.9), 'under': (237., 1.92)}
+    contradictory = deepcopy(RECORDED)
+    contradictory['event']['homeName'] = 'Unrelated club'
+    assert paf_event(contradictory, 'nba') is None
+    assert not paf_quotes(contradictory, original, receipt, 'source')
+    for occurrence in ['TEAM', 'POINTS_HOME', 'POINTS_AWAY']:
+        team_total = deepcopy(RECORDED)
+        team_total['betOffers'][2]['criterion']['occurrenceType'] = occurrence
+        assert not any(q['market'] in {'over', 'under'} for q in paf_quotes(team_total, original, receipt, 'source'))
     for change in ['state', 'lifetime', 'status', 'eventId', 'wrong_team', 'missing_line']:
         bad = deepcopy(RECORDED)
         if change == 'state':
@@ -67,8 +75,8 @@ def main():
                         start=(datetime.now(timezone.utc)+timedelta(days=1)).isoformat())
     for offer in row['betOffers']:
         for o in offer['outcomes']:
-            if o['type'] == 'OT_ONE': o['englishLabel'] = 'Real Madrid'
-            if o['type'] == 'OT_TWO': o['englishLabel'] = 'Panathinaikos BC'
+            if o['type'] == 'OT_ONE': o.update(englishLabel='Real Madrid', participant='Real Madrid', label='Real Madrid')
+            if o['type'] == 'OT_TWO': o.update(englishLabel='Panathinaikos BC', participant='Panathinaikos BC', label='Panathinaikos BC')
     game = paf_event(row, 'euroleague')
     game.update(key='euroleague:E2026:91', source='euroleague', season=2026)
     with tempfile.TemporaryDirectory() as directory:

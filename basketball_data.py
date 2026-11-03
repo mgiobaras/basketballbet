@@ -286,18 +286,29 @@ def paf_event(row, league):
             or event.get('state') != 'NOT_STARTED' or not str(event.get('id', '')).isdigit()):
         return None
     names = {side: event.get(side+'Name') for side in ['home', 'away']}
+    if not all(isinstance(n, str) and n.strip() for n in names.values()):
+        return None
     # Recorded Kambi feeds carry full English labels on typed winner outcomes,
     # even when homeName/awayName are abbreviations such as NO Pelicans.
     pairs = set()
     for offer in row.get('betOffers') or []:
-        if not isinstance(offer, dict) or (offer.get('betOfferType') or {}).get('id') != 2:
+        if (not isinstance(offer, dict) or (offer.get('betOfferType') or {}).get('id') != 2
+                or str(offer.get('eventId')) != str(event['id'])):
             continue
         outcomes = offer.get('outcomes') or []
         if not isinstance(outcomes, list):
             continue
         pair = {o.get('type'): o.get('englishLabel') for o in outcomes if isinstance(o, dict)}
         if all(isinstance(pair.get(t), str) and pair[t].strip() for t in ['OT_ONE', 'OT_TWO']):
+            for side, code in [('home', 'OT_ONE'), ('away', 'OT_TWO')]:
+                entries = [o for o in outcomes if isinstance(o, dict) and o.get('type') == code]
+                if len(entries) != 1 or not any(isinstance(entries[0].get(k), str)
+                        and name_key(entries[0][k]) == name_key(names[side])
+                        for k in ['participant', 'label', 'englishLabel']):
+                    return None
             pairs.add((pair['OT_ONE'], pair['OT_TWO']))
+    if len(pairs) > 1:
+        return None
     if len(pairs) == 1:
         names = dict(zip(['home', 'away'], pairs.pop()))
     if not all(isinstance(n, str) and n.strip() for n in names.values()) or name_key(names['home']) == name_key(names['away']):
@@ -323,6 +334,8 @@ def paf_quotes(row, game, receipt, url):
         if not isinstance(offer, dict) or str(offer.get('eventId')) != native['id'] or offer.get('suspended'):
             continue
         criterion = offer.get('criterion') or {}
+        if criterion.get('occurrenceType') not in {None, 'POINTS'}:
+            continue
         label = name_key(criterion.get('englishLabel') or criterion.get('label', ''))
         kind = labels.get(label)
         lifetime = criterion.get('lifetime')
