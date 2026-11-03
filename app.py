@@ -10,13 +10,14 @@ import streamlit as st
 
 from basketball_data import BasketballData, DataError, LEAGUES
 from basketball_model import MARKETS, analyse, distribution, instant, recent_games
+from basketball_pace import analyse_pace, boxscores
 from basketball_store import Store, SupabaseStore, StorageError
 from personal_access import require_personal_access
 
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-EURO-ODDS8 · app.py')
+st.caption('Έκδοση BASKET-PACE1 · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
@@ -122,24 +123,43 @@ with match_tab:
                 score = None if starters is None or reserves is None else -starters-.5*reserves
                 absences[side] = {'starters': starters, 'reserves': reserves, 'index': score}
         st.caption('Δείκτης: βασικός −1, αναπληρωματικός −0,5. Αποθηκεύεται χωρίς αυθαίρετη αλλαγή πιθανοτήτων. Κενή καταχώριση σημαίνει άγνωστο.')
-        model_key = 'analysis:'+game['key']
+        model_mode = st.selectbox('Μοντέλο υπολογισμού', ['Κλασικό — τελευταίοι 10 αγώνες', 'Ρυθμός & αποτελεσματικότητα — πειραματικό'],
+                                  key='model_mode')
+        pace_mode = model_mode.startswith('Ρυθμός')
+        if pace_mode:
+            st.caption('Εκτιμώμενες κατοχές και επίθεση/άμυνα ανά 100 κατοχές από αναλυτικά στατιστικά. Απαιτεί πλήρη στοιχεία για τους τελευταίους 10 αγώνες κάθε ομάδας σε NBA/Ευρωλίγκα. Δεν έχει επιβεβαιωθεί βελτίωση ακρίβειας.')
+        model_key = 'analysis:'+game['key']+(':pace-v1' if pace_mode else ':classic-v1')
         if st.button('Υπολογισμός με πραγματικά δεδομένα', type='primary'):
             st.session_state.pop(model_key, None)
             try:
                 with st.spinner('Αναζήτηση των τελευταίων 10 πραγματικών αγώνων ανά ομάδα…'):
                     history = data.history(game)
                     model = analyse(game, history)
+                    if model and pace_mode:
+                        model = analyse_pace(game, history, boxscores(data, game, history))
                 if model:
                     st.session_state[model_key] = model
                 else:
                     counts = {game['teams'][s]['name']: len(recent_games(history, game, s)) for s in ['home', 'away']}
-                    st.warning(f'Αποχή: χρειάζονται10 αγώνες ανά ομάδα πριν από τον επιλεγμένο αγώνα. Διαθέσιμοι: {counts}.')
+                    if pace_mode and all(n == 10 for n in counts.values()):
+                        st.warning('Δεν υπάρχουν επαληθευμένα αναλυτικά στατιστικά για όλους τους τελευταίους 10 αγώνες κάθε ομάδας. Δες την «Κατάσταση πηγών» ή επίλεξε το κλασικό μοντέλο.')
+                    else:
+                        st.warning(f'Αποχή: χρειάζονται 10 αγώνες ανά ομάδα πριν από τον επιλεγμένο αγώνα. Διαθέσιμοι: {counts}.')
             except (DataError, StorageError, ValueError) as error:
                 st.error(str(error))
         model = st.session_state.get(model_key)
         if model:
             st.metric('Αναμενόμενοι πόντοι μοντέλου', f"{model['mu_home']:.1f} — {model['mu_away']:.1f}")
-            st.caption('Πειραματική Normal προσέγγιση από πραγματικούς πόντους υπέρ/κατά, βάρη παλαιότητας90 ημερών. Χωρίς σταθερό πλεονέκτημα έδρας, συντελεστές ξεκούρασης ή επινοημένους μέσους όρους.')
+            if pace_mode:
+                st.caption('Πειραματική Normal προσέγγιση με προσαρμογή αναμενόμενων πόντων στις εκτιμώμενες κατοχές και την αποτελεσματικότητα. Βάρη ημιζωής 90 ημερών. Η διακύμανση παραμένει αυτή του κλασικού μοντέλου και δεν έχει βαθμονομηθεί για αυτή την προσαρμογή.')
+                st.dataframe([{'Ομάδα': game['teams'][side]['name'],
+                               f'Κατοχές / {model["regulation_minutes"]} λεπτά': round(profile['pace'], 1),
+                               'Πόντοι υπέρ / 100 κατοχές': round(profile['offensive_rating'], 1),
+                               'Πόντοι κατά / 100 κατοχές': round(profile['defensive_rating'], 1)}
+                              for side, profile in model['profiles'].items()], hide_index=True)
+                st.caption('Οι κατοχές εκτιμώνται από σουτ, επιθετικά ριμπάουντ, λάθη και βολές. Ο ρυθμός προσαρμόζεται στη διάρκεια· οι αναμενόμενοι πόντοι περιλαμβάνουν την ιστορική συμμετοχή παρατάσεων. Πηγές αναλυτικών στατιστικών: '+', '.join(sorted({b['source'] for b in model['boxscore_inputs'].values()})))
+            else:
+                st.caption('Πειραματική Normal προσέγγιση από πραγματικούς πόντους υπέρ/κατά, βάρη παλαιότητας90 ημερών. Χωρίς σταθερό πλεονέκτημα έδρας, συντελεστές ξεκούρασης ή επινοημένους μέσους όρους.')
             st.caption('Πηγές ιστορικού: '+', '.join(model['input_sources']))
             rows, distributions = [], {}
             for market, q in offers.items():
@@ -215,6 +235,7 @@ with history_tab:
         if records:
             display = [{'Αγώνας': r['fixture']['teams']['home']['name']+' — '+r['fixture']['teams']['away']['name'],
                         'Ημερομηνία': r['fixture']['kickoff'], 'Αγορά': market_labels(r['fixture'])[r['market']],
+                        'Μοντέλο': r.get('model', {}).get('model_version', '—'),
                         'Αρχική πιθανότητα μοντέλου': f"{r['probability']['win']:.1%}" if r.get('probability', {}).get('win') is not None else '—', 'Line': r['line'],
                         'Απόδοση': r['odds'], 'Μονάδες': r['stake'], 'Κατάσταση': r['status'], 'Σκορ με παράταση': r['score'],
                         'Κέρδος': r['profit'], 'Πηγή': r['quote']['source'], 'Εταιρεία': r['quote'].get('bookmaker'),

@@ -1,0 +1,247 @@
+{
+  "note": "Public completed-game team statistics captured 2026-11-03; reduced to parser inputs, not a live feed.",
+  "euroleague": {
+    "fixture": {
+      "key": "euroleague:E2026:1",
+      "id": "1",
+      "season": 2026,
+      "source": "euroleague",
+      "league": "euroleague",
+      "kickoff": "2026-09-24T18:00:00+00:00",
+      "status": "FT",
+      "teams": {
+        "home": {
+          "id": "euroleague:RED",
+          "name": "Crvena Zvezda Meridianbet Belgrade"
+        },
+        "away": {
+          "id": "euroleague:ZAL",
+          "name": "Zalgiris Kaunas"
+        }
+      },
+      "score": {
+        "home": 77.0,
+        "away": 83.0
+      },
+      "source_url": "https://api-live.euroleague.net/v2/competitions/E/seasons/E2026/games"
+    },
+    "response": {
+      "local": {
+        "total": {
+          "timePlayed": 2400.0,
+          "points": 77.0,
+          "freeThrowsAttempted": 19.0,
+          "fieldGoalsAttemptedTotal": 73.0,
+          "offensiveRebounds": 15.0,
+          "turnovers": 14.0
+        },
+        "players": [
+          {
+            "player": {
+              "club": {
+                "code": "RED",
+                "name": "Crvena Zvezda Meridianbet Belgrade",
+                "abbreviatedName": "Crvena Zvezda",
+                "editorialName": "Crvena",
+                "tvCode": "CZV",
+                "isVirtual": false,
+                "images": {
+                  "crest": "https://media-cdn.incrowdsports.com/d2eef4a8-62df-4fdd-9076-276004268515.png"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "road": {
+        "total": {
+          "timePlayed": 2400.0,
+          "points": 83.0,
+          "freeThrowsAttempted": 27.0,
+          "fieldGoalsAttemptedTotal": 63.0,
+          "offensiveRebounds": 13.0,
+          "turnovers": 16.0
+        },
+        "players": [
+          {
+            "player": {
+              "club": {
+                "code": "ZAL",
+                "name": "Zalgiris Kaunas",
+                "abbreviatedName": "Zalgiris",
+                "editorialName": "Zalgiris",
+                "tvCode": "ZAL",
+                "isVirtual": false,
+                "images": {
+                  "crest": "https://media-cdn.incrowdsports.com/0aa09358-3847-4c4e-b228-3582ee4e536d.png"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "nba": {
+    "fixture": {
+      "key": "espn:401909903",
+      "id": "401909903",
+      "source": "espn",
+      "league": "nba",
+      "kickoff": "2026-11-01T20:30:00+00:00",
+      "status": "FT",
+      "teams": {
+        "home": {
+          "id": "espn:19",
+          "name": "Orlando Magic"
+        },
+        "away": {
+          "id": "espn:2",
+          "name": "Boston Celtics"
+        }
+      },
+      "score": {
+        "home": 97.0,
+        "away": 108.0
+      },
+      "source_url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401909903"
+    },
+    "response": {
+      "header": {
+        "id": "401909903",
+        "competitions": [
+          {
+            "date": "2026-11-01T20:30Z",
+            "status": {
+              "type": {
+                "id": "3",
+                "name": "STATUS_FINAL",
+                "state": "post",
+                "completed": true,
+                "description": "Final",
+                "detail": "Final",
+                "shortDetail": "Final"
+              }
+            },
+            "competitors": [
+              {
+                "homeAway": "home",
+                "score": "97",
+                "linescores": [
+                  {
+                    "displayValue": "23"
+                  },
+                  {
+                    "displayValue": "27"
+                  },
+                  {
+                    "displayValue": "24"
+                  },
+                  {
+                    "displayValue": "23"
+                  }
+                ],
+                "team": {
+                  "id": "19",
+                  "displayName": "Orlando Magic"
+                }
+              },
+              {
+                "homeAway": "away",
+                "score": "108",
+                "linescores": [
+                  {
+                    "displayValue": "24"
+                  },
+                  {
+                    "displayValue": "31"
+                  },
+                  {
+                    "displayValue": "22"
+                  },
+                  {
+                    "displayValue": "31"
+                  }
+                ],
+                "team": {
+                  "id": "2",
+                  "displayName": "Boston Celtics"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "boxscore": {
+        "teams": [
+          {
+            "homeAway": "away",
+            "team": {
+              "id": "2",
+              "displayName": "Boston Celtics"
+            },
+            "statistics": [
+              {
+                "name": "fieldGoalsMade-fieldGoalsAttempted",
+                "displayValue": "37-84"
+              },
+              {
+                "name": "freeThrowsMade-freeThrowsAttempted",
+                "displayValue": "22-26"
+              },
+              {
+                "name": "offensiveRebounds",
+                "displayValue": "14"
+              },
+              {
+                "name": "turnovers",
+                "displayValue": "12"
+              },
+              {
+                "name": "teamTurnovers",
+                "displayValue": "1"
+              },
+              {
+                "name": "totalTurnovers",
+                "displayValue": "13"
+              }
+            ]
+          },
+          {
+            "homeAway": "home",
+            "team": {
+              "id": "19",
+              "displayName": "Orlando Magic"
+            },
+            "statistics": [
+              {
+                "name": "fieldGoalsMade-fieldGoalsAttempted",
+                "displayValue": "34-81"
+              },
+              {
+                "name": "freeThrowsMade-freeThrowsAttempted",
+                "displayValue": "15-19"
+              },
+              {
+                "name": "offensiveRebounds",
+                "displayValue": "13"
+              },
+              {
+                "name": "turnovers",
+                "displayValue": "16"
+              },
+              {
+                "name": "teamTurnovers",
+                "displayValue": "2"
+              },
+              {
+                "name": "totalTurnovers",
+                "displayValue": "18"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
