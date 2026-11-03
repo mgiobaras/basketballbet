@@ -15,7 +15,32 @@ EURO_BASE = 'https://api-live.euroleague.net/v2'
 ALIASES = {'la clippers': 'los angeles clippers', 'la lakers': 'los angeles lakers',
            'olympiacos piraeus': 'olympiacos', 'olympiacos bc': 'olympiacos',
            'panathinaikos athens': 'panathinaikos', 'panathinaikos aktor athens': 'panathinaikos',
-           'fenerbahce beko istanbul': 'fenerbahce', 'fc barcelona': 'barcelona'}
+           'panathinaikos bc': 'panathinaikos',
+           'fenerbahce beko istanbul': 'fenerbahce', 'fc barcelona': 'barcelona',
+           # Explicit EuroLeague/Sofascore spellings, checked against the 2026/27
+           # official team directory and the linked Sofascore team pages.
+           'anadolu efes istanbul': 'anadolu efes',
+           'armani olimpia milan': 'olimpia milano',
+           'ea7 emporio armani milan': 'olimpia milano',
+           'ea7 emporio armani milano': 'olimpia milano',
+           'besiktas istanbul': 'besiktas', 'besiktas jk': 'besiktas',
+           'besiktas gain istanbul': 'besiktas', 'besiktas emlakjet': 'besiktas',
+           'crvena zvezda meridianbet belgrade': 'crvena zvezda',
+           'kk crvena zvezda meridianbet': 'crvena zvezda', 'kk crvena zvezda': 'crvena zvezda',
+           'bc dubai': 'dubai basketball', 'barca basket': 'barcelona',
+           'fc bayern munich': 'bayern munich', 'bayern munchen': 'bayern munich',
+           'fenerbahce tarfin istanbul': 'fenerbahce', 'fenerbahce tarfin': 'fenerbahce',
+           'fenerbahce istanbul': 'fenerbahce', 'fenerbahce beko': 'fenerbahce',
+           'hapoel ibi tel aviv': 'hapoel tel aviv',
+           'kosner baskonia vitoria gasteiz': 'baskonia', 'kosner baskonia': 'baskonia',
+           'baskonia vitoria gasteiz': 'baskonia', 'saski baskonia': 'baskonia',
+           'ldlc asvel villeurbanne': 'asvel', 'ldlc asvel lyon villeurbanne': 'asvel',
+           'asvel lyon villeurbanne': 'asvel',
+           'maccabi rapyd tel aviv': 'maccabi tel aviv', 'maccabi playtika tel aviv': 'maccabi tel aviv',
+           'partizan mozzarbet belgrade': 'partizan', 'partizan mozzart bet belgrade': 'partizan',
+           'kk partizan mozzart bet': 'partizan',
+           'virtus segafredo bologna': 'virtus bologna', 'zalgiris kaunas': 'zalgiris',
+           'kauno zalgiris': 'zalgiris'}
 
 
 class DataError(RuntimeError):
@@ -460,6 +485,7 @@ class BasketballData:
                 try:
                     native = self.native(game, source)
                     if native is None:
+                        errors.append(f'{source}: δεν βρέθηκε μοναδική αντιστοίχιση του αγώνα με ίδια διοργάνωση, ομάδες και ώρα έναρξης για αναζήτηση αποδόσεων.')
                         continue
                     found, notes = self.adapters[source].quotes(native)
                     for q in found:
@@ -467,12 +493,14 @@ class BasketballData:
                         if not any(existing['market'] == q['market'] for existing in quotes):
                             quotes.append(q)
                     errors.extend(notes)
+                    if not found and source != 'euroleague' and not notes:
+                        errors.append(f'{source}: δεν επιστράφηκαν επιβεβαιωμένες αποδόσεις πλήρους αγώνα με τις αντίστοιχες γραμμές.')
                     if len({q['market'] for q in quotes}) == 6:
                         break
                 except DataError as error:
                     errors.append(str(error))
             return quotes, errors
-        return self.store.cached(f'quotes:{game["key"]}:{refresh}', load, 90)
+        return self.store.cached(f'quotes:v2:{game["key"]}:{refresh}', load, 90)
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:
