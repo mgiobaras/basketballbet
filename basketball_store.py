@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import requests
 
 from basketball_model import MARKETS, instant, number, final_score, outcome
+from prediction_log import SQLITE_SCHEMA
 
 
 class StorageError(RuntimeError):
@@ -21,6 +22,7 @@ class Store:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
+            db.executescript(SQLITE_SCHEMA)
             db.executescript('''CREATE TABLE IF NOT EXISTS basketball_bets(id TEXT PRIMARY KEY, payload TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS basketball_cache(id TEXT PRIMARY KEY, payload TEXT NOT NULL, expires_at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS basketball_legacy(id TEXT PRIMARY KEY, payload TEXT NOT NULL);''')
@@ -33,6 +35,16 @@ class Store:
                 yield db
         finally:
             db.close()
+
+    def record_prediction(self, packet):
+        with self.connect() as db:
+            db.execute('INSERT INTO app_prediction_log VALUES (?,?,?,?) ON CONFLICT(id) DO NOTHING',
+                       (packet['id'], packet['sport'], packet['captured_at'], json.dumps(packet['payload'], ensure_ascii=False, allow_nan=False)))
+
+    def list_predictions(self, sport='basketball'):
+        with self.connect() as db:
+            rows = db.execute('SELECT id,sport,captured_at,payload FROM app_prediction_log WHERE sport=? ORDER BY captured_at,id', (sport,))
+            return [dict(id=r[0], sport=r[1], captured_at=r[2], payload=json.loads(r[3])) for r in rows]
 
     def save(self, game, quote, probability, absences, model, now=None):
         now = now or datetime.now(timezone.utc)
@@ -164,6 +176,18 @@ class SupabaseStore(Store):
             return r.json()
         except ValueError:
             raise StorageError('Μη έγκυρη απάντηση Supabase.') from None
+
+    def record_prediction(self, packet):
+        rows = self.request('POST', 'app_prediction_log', params={'on_conflict': 'id'}, payload=packet,
+                            prefer='resolution=ignore-duplicates,return=representation')
+        if not isinstance(rows, list):
+            raise StorageError('Δεν επιβεβαιώθηκε η καταγραφή ανάλυσης.')
+
+    def list_predictions(self, sport='basketball'):
+        rows = self.request('POST', 'rpc/app_list_prediction_logs', payload={'p_sport': sport})
+        if not isinstance(rows, list):
+            raise StorageError('Δεν επιβεβαιώθηκε η ανάγνωση καταγραφών ανάλυσης.')
+        return rows
 
     def insert(self, record):
         rows = self.request('POST', 'basketball_bets', {'on_conflict': 'id'}, {'id': record['id'], 'payload': record}, 'resolution=ignore-duplicates,return=representation')

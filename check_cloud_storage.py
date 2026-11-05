@@ -15,6 +15,7 @@ import uuid
 from basketball_store import SupabaseStore
 from basketball_model import analyse, distribution
 from check_basketball import fixture, history, quote, NOW
+from check_prediction_log import cloud_check
 
 DOCKER = ['env', '-u', 'DOCKER_HOST', '-u', 'DOCKER_CONTEXT', '-u', 'DOCKER_TLS', '-u', 'DOCKER_TLS_VERIFY', '-u', 'DOCKER_CERT_PATH', 'docker', '--host=unix:///var/run/docker.sock']
 SECRET = 'basketball-local-test-only-postgrest-secret'
@@ -89,6 +90,8 @@ def main():
         done = dict(f, status='FT', score={'home': 102, 'away': 98})
         assert store.settle(done) == 1 and store.settle(done) == 0
         assert store.list()[0]['status'] == 'push' and store.list()[0]['profit'] == 0
+        migration = (Path(__file__).parent/'database/enable_prediction_logging.sql').read_text()
+        cloud_check(store, transport, jwt, lambda: docker('exec', '-i', pg, 'psql', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-q', text=migration))
         assert store.cached('stat', lambda: {'actual': 0}, 60) == {'actual': 0}
         assert store.cached('stat', lambda: None, 60) == {'actual': 0}
         for role in ['anon', 'authenticated']:
@@ -104,6 +107,7 @@ def main():
                 time.sleep(.25)
         else:
             raise RuntimeError('Stored history did not survive restart')
+        assert len(store.list_predictions()) == 1003
         print('PASS real PostgreSQL/PostgREST: idempotent schema, private tables, unit-stake persistence, immutable lines/odds, push settlement, cache, server restart')
     finally:
         docker('rm', '-f', rest, pg, check=False)

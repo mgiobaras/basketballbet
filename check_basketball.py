@@ -163,6 +163,14 @@ def ui_check():
         assert all(n.value is None for n in app.number_input)
         next(b for b in app.button if b.label.startswith('Υπολογισμός')).click().run(timeout=30)
         assert not app.exception and app.multiselect[0].options
+        log = Store(directory+'/bets.sqlite3').list_predictions()
+        assert len(log) == 1 and len(log[0]['payload']['markets']) == 6
+        assert Store(directory+'/bets.sqlite3').list() == []
+        assert log[0]['payload']['markets']['over']['line'] == 200
+        assert log[0]['payload']['markets']['under']['line'] is None
+        assert log[0]['payload']['markets']['under']['probability'] is None
+        assert log[0]['payload']['markets']['home']['probability'] is not None
+        assert len(log[0]['payload']['inputs']['home']) == 10
         app.multiselect[0].select('over').run(timeout=30)
         next(b for b in app.button if b.label == 'Αποθήκευση επιλογών').click().run(timeout=30)
         assert not app.exception
@@ -170,6 +178,7 @@ def ui_check():
         assert len(records) == 1 and records[0]['line'] == 200 and records[0]['stake'] == 1
         next(b for b in app.button if b.label == 'Αποθήκευση επιλογών').click().run(timeout=30)
         assert len(Store(directory+'/bets.sqlite3').list()) == 1
+        assert Store(directory+'/bets.sqlite3').list_predictions() == log
         next(c for c in app.checkbox if c.label.startswith('Χειροκίνητη')).check().run(timeout=30)
         assert not app.exception
         assert all(n.value is None for n in app.number_input)

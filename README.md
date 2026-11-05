@@ -174,3 +174,46 @@ python check_cloud_storage.py
 μην καλύπτει κάθε αγώνα ή να αρνείται πρόσβαση από συγκεκριμένο server.
 Έλεγχος με καταγεγραμμένα δεδομένα πηγής: `python check_paf_odds.py`.
 Η ζωντανή πρόσβαση από την εγκατάσταση Streamlit χρειάζεται επιβεβαίωση εκεί.
+
+### Private analysis log
+
+Every successful Calculate records a separate immutable snapshot of the selected
+fixture, all market probabilities, actual quotes/lines where available, missing
+values, absences, selected model version and the observations used. No additional
+sports-data requests are made just for logging. Games the user never calculates
+are not logged. Basketball markets without a real total/handicap line have null
+probability; no line or price is invented. Only the model actually calculated is
+recorded, including its version when experimental pace mode is selected.
+
+There is no new log table or control in the app UI. Selected-bet history, its
+JSON/CSV exports, results and ROI remain unchanged. Logs are not automatically
+converted to bets and do not retrain the model. Later evaluation must join
+verified final scores and choose one fixed pregame snapshot per fixture, market
+and model version; independent recalculations must not inflate the sample.
+Analyses captured at/after kickoff or outside NS are marked ineligible for
+pregame evaluation. Old history is not backfilled as new forecasts.
+
+For an existing Supabase installation run `database/enable_prediction_logging.sql`
+in the SQL Editor once per project (once total if both apps share the project).
+New installations can use the complete `database/supabase_setup.sql`. The
+migration only adds a private table and a private export function, can be
+repeated, and never modifies existing bet/history tables. Only the server's
+service_role can read/insert log records; anon/authenticated cannot read them,
+and the REST service role cannot update/delete these snapshots.
+
+For an owner export use the Supabase SQL Editor:
+
+```sql
+select public.app_list_prediction_logs('football');
+-- Or: select public.app_list_prediction_logs('basketball');
+```
+
+The server-side store also provides `list_predictions()` for a full JSON export,
+independent of the selected-bet export and without the REST row limit.
+
+A failed write shows a warning and retries the same snapshot ID on later reruns
+in the same open browser session. Calculations and explicit selected-bet saves
+remain usable. A pending snapshot is only in session memory until the database
+confirms it; closing/restarting that session before recovery can lose it. There
+is no silent temporary-disk fallback for cloud storage. Local SQLite is for local
+use and is not durable across Streamlit Cloud restarts.

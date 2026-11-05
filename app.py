@@ -14,12 +14,14 @@ from basketball_pace import analyse_pace, boxscores
 from basketball_store import Store, SupabaseStore, StorageError
 from personal_access import require_personal_access
 from sports_ui import apply_theme, history_order, history_time
+from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_predictions
 
 ROOT = Path(__file__).resolve().parent
+APP_VERSION = 'BASKET-2026-11-06-LOG1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-2026-11-06-GREECE1 · app.py')
+st.caption(f'Έκδοση {APP_VERSION} · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
@@ -57,6 +59,9 @@ except (StorageError, OSError, ValueError) as error:
     st.error(str(error))
     st.stop()
 
+log_warning = flush_predictions(store, st.session_state, 'basketball')
+if log_warning:
+    st.warning(log_warning)
 data = BasketballData(store, odds_key=setting('ODDS_API_KEY'))
 match_tab, history_tab = st.tabs(['Αγώνας & επιλογές', 'Ιστορικό & αποτελέσματα'])
 with match_tab:
@@ -145,6 +150,17 @@ with match_tab:
                         model = analyse_pace(game, history, boxscores(data, game, history))
                 if model:
                     st.session_state[model_key] = model
+                    markets = {}
+                    for market in MARKETS:
+                        offer = offers.get(market)
+                        line = offer.get('line') if offer else None
+                        markets[market] = {'line': line, 'probability': distribution(model, market, line),
+                                           'quote': quote_snapshot(offer)}
+                    queue_prediction(st.session_state, snapshot('basketball', game, model, markets, absences, APP_VERSION,
+                        inputs={side: recent_games(history, game, side) for side in ['home', 'away']}))
+                    warning = flush_predictions(store, st.session_state, 'basketball')
+                    if warning and not log_warning:
+                        st.warning(warning)
                 else:
                     counts = {game['teams'][s]['name']: len(recent_games(history, game, s)) for s in ['home', 'away']}
                     if pace_mode and all(n == 10 for n in counts.values()):
