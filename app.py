@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
-st.caption('Έκδοση BASKET-2026-11-05-UI1 · app.py')
+st.caption('Έκδοση BASKET-2026-11-06-GREECE1 · app.py')
 st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 

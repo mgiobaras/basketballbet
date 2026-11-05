@@ -197,6 +197,17 @@ class HTTP:
             raise DataError('Η πηγή δεν επέστρεψε έγκυρο αντικείμενο δεδομένων.')
         return data
 
+    def text(self, url, params=None):
+        try:
+            response = self.transport.get(url, params=params, timeout=(5, 20),
+                                          headers={'User-Agent': 'BasketballBet/2', 'Accept': 'text/html'})
+        except requests.RequestException:
+            raise DataError('Αποτυχία ασφαλούς σύνδεσης με '+url.split('/')[2]+'.') from None
+        if response.status_code != 200:
+            raise DataError(url.split('/')[2]+f': HTTP {response.status_code}.')
+        response.encoding = 'utf-8'
+        return response.text
+
 
 class TheOddsAPI:
     BASE = 'https://api.the-odds-api.com/v4/sports'
@@ -560,9 +571,14 @@ def sofa_event(event, league):
     tournament = (event.get('tournament') or {})
     unique = tournament.get('uniqueTournament') or tournament
     slug = unique.get('slug', '').lower()
-    category = (tournament.get('category') or {}).get('name', '').lower()
+    category = (tournament.get('category') or unique.get('category') or {}).get('name', '').lower()
     allowed = {'nba': {'nba'}, 'euroleague': {'euroleague'}, 'greece': {'basket-league', 'greek-basket-league', 'a1'}}
-    if slug not in allowed[league] or (league == 'greece' and category != 'greece'):
+    if league == 'greece':
+        greek_names = allowed['greece'] | {'stoiximan-basket-league', 'stoiximan-gbl'}
+        tournament_id = unique.get('id')
+        if category != 'greece' or (str(tournament_id) != '304' if tournament_id is not None else slug not in greek_names):
+            return None
+    elif slug not in allowed[league]:
         return None
     if not event.get('id') or number(event.get('startTimestamp')) is None:
         return None
@@ -719,20 +735,21 @@ class Euro:
 
 class BasketballData:
     def __init__(self, store, http=None, odds_key=''):
+        from esake_data import Esake
         self.store = store
         self.odds = TheOddsAPI(odds_key, store) if odds_key else None
         http = http or HTTP()
         self.paf = Paf(store, http)
-        self.adapters = {'espn': ESPN(http), 'sofascore': Sofa(http), 'euroleague': Euro(http)}
+        self.adapters = {'espn': ESPN(http), 'sofascore': Sofa(http), 'euroleague': Euro(http), 'esake': Esake(store, http)}
         self.errors = []
 
     def order(self, league):
-        return ['espn', 'sofascore'] if league == 'nba' else ['euroleague', 'sofascore', 'espn'] if league == 'euroleague' else ['sofascore']
+        return ['espn', 'sofascore'] if league == 'nba' else ['euroleague', 'sofascore', 'espn'] if league == 'euroleague' else ['esake', 'sofascore']
 
     def fixtures_from(self, source, league, day):
         key = f'fixtures:{source}:{league}:{day}'
         def load():
-            days = [day] if source == 'euroleague' else [day-timedelta(days=1), day]
+            days = [day] if source in {'euroleague', 'esake'} else [day-timedelta(days=1), day]
             values = {}
             for requested_day in days:
                 for game in self.adapters[source].fixtures(league, requested_day):
