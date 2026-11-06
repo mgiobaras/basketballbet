@@ -1,6 +1,6 @@
 # BasketballBet
 
-Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-HISTORY-FLEX1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
+Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-HISTORY-FETCH1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
 
 ## Ελληνική Basket League — 06/11/2026
 
@@ -369,3 +369,42 @@ box scores, and Greek Streamlit calculation/log/save with5 games. An existing
 v1 selected-bet record remains unchanged after the new analysis
 and save. Existing basketball and pace checks also passed. Source prices,
 browser odds retrieval, saved probabilities, past history and SQL are unchanged.
+
+### ESAKE history retrieval: HISTORY-FETCH1
+
+The owner reported zero history for Doxa/Aris and an ESAKE secure-connection
+failure after the minimum-sample change. Previously history loaded entire
+current/previous seasons, including unplayed phases. Any archive exception
+aborted that adapter and discarded already retrieved results.
+
+Greek history now starts with the normal, verified EsakeResults page and keeps
+completed observations from the selected fixture's season/championship before
+its kickoff. It requests relevant earlier round pages sequentially, skipping a
+round only when both target teams already have a verified result there. For
+playoffs it also checks the regular season. It does not fetch a previous season
+just to fill ten slots or query future playoff phases for a regular-season game.
+Each failed round adds a source note and diagnostic; other valid observations
+remain usable. Wrong season/phase/round pages are still rejected. Genuine score
+or identity conflicts stop calculation rather than being silently reconciled.
+
+The model still chooses its latest ten by kickoff date, not round number, so a
+postponed early-round match played recently can enter the window. The history
+scan does not stop as soon as ten numeric rounds have been seen. Verified round
+pages cache for600 seconds; the normal latest-results page caches for120 seconds.
+ESAKE bypasses the old combined six-hour history cache, allowing a previously
+empty/partial response to recover on a later calculation. Other sports adapters
+keep their existing cache. No table/history migration or bet changes are made.
+
+`python check_esake_history.py [owner-esake-diagnostics.json]` passed for archived
+connection failures, preservation of verified recent results, current-season
+5/5 recovery, stale empty-cache bypass, correct actual home/away orientation,
+per-round cache reuse, delayed early-round games in the latest-ten window,
+duplicate URL isolation, conflicting-score rejection, zero-data abstention and
+Greek Streamlit calculation/logging. With the owner's real default results
+capture, one completed game per target team survives failures of all other
+archive requests; the 5/5 archive recovery is exercised with controlled pages.
+The application never loads the uploaded capture as production history. These
+are replay/failure-injection checks, not proof that ESAKE's live connection is
+always available. If every request fails and no verified cache exists, history
+correctly remains unavailable. Diagnostics retain at most four public response
+bodies, while all error notes remain visible.

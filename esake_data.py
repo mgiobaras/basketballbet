@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from html import unescape
 from html.parser import HTMLParser
 import re
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from basketball_data import DataError, name_key
-from basketball_model import final_score, instant, recent_games
+from basketball_model import final_score, instant
 
 BASE = 'https://www.esake.gr/el/action/'
 ATHENS = ZoneInfo('Europe/Athens')
@@ -199,12 +200,16 @@ class Esake:
     def __init__(self, store, http):
         self.store, self.http = store, http
         self.diagnostics = {}
+        self.errors = []
 
-    def record_failure(self, action, html, error):
+    def record_failure(self, action, html, error, params=None):
         # Only the public ESAKE response: no app settings, headers or bet history.
         limit = 2_000_000
-        self.diagnostics[action] = {
-            'url': BASE+action, 'captured_at': datetime.now(timezone.utc).isoformat(),
+        key = action+('?' + urlencode(params) if params else '')
+        if key not in self.diagnostics and len(self.diagnostics) >= 4:
+            return  # Bound downloaded public HTML; all error messages still remain available.
+        self.diagnostics[key] = {
+            'url': BASE+key, 'captured_at': datetime.now(timezone.utc).isoformat(),
             'error': str(error), 'response_characters': len(html) if html is not None else None,
             'truncated': html is not None and len(html) > limit,
             'html': html[:limit] if html is not None else None}
@@ -233,17 +238,42 @@ class Esake:
     def round_page(self, year, championship, phase, series):
         url = BASE+'EsakeResults'
         params = dict(idchampionship=championship, idseason=phase, series=f'{int(series):02d}', idteam='')
-        page = Page(self.http.text(url, params))
-        selected_phases = selected_values(page, 'idseason')
-        if selected_phases != [phase]:
-            raise DataError('ΕΣΑΚΕ: η πηγή επέστρεψε διαφορετική φάση της διοργάνωσης.')
-        games = games_from(page, year, championship, phase, url+'?'+ '&'.join(k+'='+v for k, v in params.items()))
-        if any(g['round'] != int(series) for g in games):
-            raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η ζητούμενη αγωνιστική.')
-        rounds = sorted(page.rounds | {o['value'] for o in page.options.get('series', [])
-                        if o['value'].isdigit() and 1 <= int(o['value']) <= 40}, key=int)
-        phases = [o['value'] for o in page.options.get('idseason', []) if re.fullmatch(r'[\dA-Fa-f]{8}', o['value'])]
-        return games, rounds, phases
+        def load():
+            html = None
+            try:
+                html = self.http.text(url, params)
+                page = Page(html)
+                if selected_values(page, 'idseason') != [phase]:
+                    raise DataError('ΕΣΑΚΕ: η πηγή επέστρεψε διαφορετική φάση της διοργάνωσης.')
+                games = games_from(page, year, championship, phase, url+'?'+urlencode(params))
+                if any(g['round'] != int(series) for g in games):
+                    raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η ζητούμενη αγωνιστική.')
+                rounds = sorted(page.rounds | {o['value'] for o in page.options.get('series', [])
+                                if o['value'].isdigit() and 1 <= int(o['value']) <= 40}, key=int)
+                phases = [o['value'] for o in page.options.get('idseason', []) if re.fullmatch(r'[\dA-Fa-f]{8}', o['value'])]
+                return games, rounds, phases
+            except DataError as error:
+                self.record_failure('EsakeResults', html, error, params)
+                raise
+        return self.store.cached(f'esake:round:v1:{year}:{championship}:{phase}:{int(series)}', load, 600)
+
+    def latest_results(self):
+        """The normal results page needs no archive query or unplayed phase."""
+        def load():
+            html = None
+            try:
+                html = self.http.text(BASE+'EsakeResults')
+                page = Page(html)
+                seasons, year = championships(page)
+                phases = selected_values(page, 'idseason')
+                if len(phases) != 1 or not re.fullmatch(r'[\dA-Fa-f]{8}', phases[0]):
+                    raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η φάση των αποτελεσμάτων.')
+                return {'year': year, 'championship': seasons[str(year)], 'phase': phases[0],
+                        'games': games_from(page, year, seasons[str(year)], phases[0], BASE+'EsakeResults')}
+            except DataError as error:
+                self.record_failure('EsakeResults', html, error)
+                raise
+        return self.store.cached('esake:latest-results:v1', load, 120)
 
     def season(self, year):
         def load():
@@ -283,12 +313,50 @@ class Esake:
         return [g for g in self.season(year) if instant(g['kickoff']).astimezone(ATHENS).date() == day]
 
     def history(self, game):
+        """Keep verified current-season results even if an archive page fails."""
         values = {}
-        for year in [game['season'], game['season']-1]:
-            values.update((g['key'], g) for g in self.season(year) if final_score(g)
-                          and 0 < (instant(game['kickoff'])-instant(g['kickoff'])).total_seconds() <= 366*86400)
-            if all(len(recent_games(list(values.values()), game, side)) == 10 for side in ['home', 'away']):
-                break
+        self.errors = []
+        def merge(games):
+            for g in games:
+                if (g.get('season') != game['season'] or g.get('championship') != game['championship']
+                        or not final_score(g) or not 0 < (instant(game['kickoff'])-instant(g['kickoff'])).total_seconds() <= 366*86400):
+                    continue
+                previous = values.get(g['key'])
+                if previous and {k:v for k,v in previous.items() if k!='source_url'} != {k:v for k,v in g.items() if k!='source_url'}:
+                    raise ValueError('ΕΣΑΚΕ: αντικρουόμενη ταυτότητα ή σκορ ιστορικού αγώνα.')
+                values.setdefault(g['key'], g)
+        try:
+            latest = self.latest_results()
+            merge(latest['games'])
+        except DataError as error:
+            self.errors.append('ΕΣΑΚΕ, πρόσφατα αποτελέσματα: '+str(error))
+        phases = [game['phase']]
+        if game['phase'] != '00000001':
+            phases.append('00000001')  # Include regular-season games before playoffs.
+        for phase in phases:
+            if phase == game['phase']:
+                last = max([game['round']-1]+[g['round'] for g in values.values() if g['phase']==phase])
+                if not 0 <= last <= 40:
+                    raise DataError('ΕΣΑΚΕ: μη έγκυρο πλήθος προηγούμενων αγωνιστικών.')
+                rounds = range(last,0,-1)
+            else:
+                try:
+                    first, rounds, _ = self.round_page(game['season'],game['championship'],phase,1)
+                    merge(first)
+                    rounds = sorted({int(r) for r in rounds if int(r)!=1},reverse=True)
+                except DataError as error:
+                    self.errors.append('ΕΣΑΚΕ, κανονική περίοδος: '+str(error))
+                    continue
+            for series in rounds:
+                observed = [g for g in values.values() if g['phase']==phase and g['round']==series]
+                if all(any(game['teams'][side]['id'] in [t['id'] for t in g['teams'].values()]
+                           for g in observed) for side in ['home','away']):
+                    continue
+                try:
+                    played, _, _ = self.round_page(game['season'],game['championship'],phase,series)
+                    merge(played)
+                except DataError as error:
+                    self.errors.append(f'ΕΣΑΚΕ, αγωνιστική {series}: {error}')
         return list(values.values())
 
     def quotes(self, game):

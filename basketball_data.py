@@ -816,7 +816,14 @@ class BasketballData:
                 native = self.native(game, source)
                 if native is None:
                     continue
-                values = self.store.cached('history:'+native['key'], lambda: self.adapters[source].history(native), 6*3600)
+                adapter = self.adapters[source]
+                # ESAKE caches each verified round itself. A partial/empty
+                # archive must not remain frozen in the six-hour history cache.
+                values = adapter.history(native) if source == 'esake' else self.store.cached(
+                    'history:'+native['key'], lambda: adapter.history(native), 6*3600)
+                notes = getattr(adapter, 'errors', [])
+                if isinstance(notes, list):
+                    self.errors.extend(notes)
                 for g in values:
                     if g['league'] != game['league'] or final_score(g) is None or not 0 < (instant(game['kickoff'])-instant(g['kickoff'])).total_seconds() <= 366*86400:
                         continue

@@ -108,21 +108,17 @@ def main():
         def archived_page(url, params=None):
             if url.endswith('EsakePrograms'):
                 return html
-            series = int(params['series'])
+            series = int(params['series']) if params else 2
             return header(rounds=('1', '2'))+block(f'D000000{series}', 'Home', 'Away',
                        f'Σαβ {series+3} Οκτ - 17:00', '90&nbsp;-&nbsp;80', series)
         http.text.side_effect = archived_page
         archived = archive.season(2026)
         assert len(archived) == 2 and all(g['status'] == 'FT' for g in archived)
         assert archive.result(archived[0])['score'] == {'home': 90, 'away': 80}
-        from check_basketball import fixture, history
-        target = fixture(); target.update(league='greece', source='esake', season=2026)
-        observed = history(target)
-        for g in observed:
-            g.update(league='greece', source='esake')
-        archive.season = Mock(side_effect=lambda year: observed[:4] if year == 2026 else observed[4:])
-        assert len(archive.history(target)) == 20
-        assert archive.season.call_count == 2
+        target = saturday[0]
+        observed = archive.history(target)
+        assert len(observed) == 5 and {g['round'] for g in observed} == set(range(1,6))
+        assert all(g['season']==2026 for g in observed)
         http.text.side_effect = None
         # Preserve automatic fallback when the official source is unavailable.
         other = BasketballData(Store(directory+'/fallback.sqlite3'), http=http)
