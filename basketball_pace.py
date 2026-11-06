@@ -83,7 +83,7 @@ def euro_box(data, game):
 
 
 def boxscores(data, fixture, history):
-    """Fetch only the selected last ten per team. Cache compact, validated snapshots."""
+    """Fetch only the available recent games, capped at ten per team."""
     selected = {g['key']: g for side in SIDES for g in recent_games(history, fixture, side)}
     source = {'nba': 'espn', 'euroleague': 'euroleague'}.get(fixture['league'])
     if source is None:
@@ -155,7 +155,7 @@ def analyse_pace(fixture, history, boxes):
     possessions = (home['possessions']+away['possessions'])/2
     model.update(mu_home=possessions*(home['offensive_rating']+away['defensive_rating'])/200,
                  mu_away=possessions*(away['offensive_rating']+home['defensive_rating'])/200,
-                 model_version='basket-last10-possessions-v1', profiles=profiles,
+                 model_version='basket-up-to10-possessions-v2', profiles=profiles,
                  expected_possessions=possessions, regulation_minutes=regulation,
                  possession_formula='average(home,away) of FGA - ORB + TOV + 0.44 * FTA',
                  variance_method='classic_observed_scores',

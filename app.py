@@ -18,12 +18,12 @@ from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_pre
 from paf_browser import browser_quotes
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-06-BROWSER-ODDS1'
+APP_VERSION = 'BASKET-2026-11-06-HISTORY-FLEX1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
 st.caption(f'Έκδοση {APP_VERSION} · app.py')
-st.caption('Τελευταίοι 10 πραγματικοί αγώνες · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
+st.caption('Έως 10 πιο πρόσφατοι πραγματικοί αγώνες ανά ομάδα · 1 μονάδα ανά επιλογή · αποδόσεις ≥1,50. Ο στόχος 70% και η κερδοφορία δεν έχουν επιβεβαιωθεί.')
 
 
 def setting(name, default=''):
@@ -143,16 +143,18 @@ with match_tab:
                 score = None if starters is None or reserves is None else -starters-.5*reserves
                 absences[side] = {'starters': starters, 'reserves': reserves, 'index': score}
         st.caption('Δείκτης: βασικός −1, αναπληρωματικός −0,5. Αποθηκεύεται χωρίς αυθαίρετη αλλαγή πιθανοτήτων. Κενή καταχώριση σημαίνει άγνωστο.')
-        model_mode = st.selectbox('Μοντέλο υπολογισμού', ['Κλασικό — τελευταίοι 10 αγώνες', 'Ρυθμός & αποτελεσματικότητα — πειραματικό'],
-                                  key='model_mode')
+        model_options = ['Κλασικό — έως 10 πρόσφατοι αγώνες', 'Ρυθμός & αποτελεσματικότητα — πειραματικό']
+        if st.session_state.get('model_mode') not in model_options:
+            st.session_state.pop('model_mode', None)
+        model_mode = st.selectbox('Μοντέλο υπολογισμού', model_options, key='model_mode')
         pace_mode = model_mode.startswith('Ρυθμός')
         if pace_mode:
-            st.caption('Εκτιμώμενες κατοχές και επίθεση/άμυνα ανά 100 κατοχές από αναλυτικά στατιστικά. Απαιτεί πλήρη στοιχεία για τους τελευταίους 10 αγώνες κάθε ομάδας σε NBA/Ευρωλίγκα. Δεν έχει επιβεβαιωθεί βελτίωση ακρίβειας.')
-        model_key = 'analysis:'+game['key']+(':pace-v1' if pace_mode else ':classic-v1')
+            st.caption('Εκτιμώμενες κατοχές και επίθεση/άμυνα ανά 100 κατοχές από αναλυτικά στατιστικά. Απαιτεί πλήρη στοιχεία για όλους τους διαθέσιμους έως 10 πιο πρόσφατους αγώνες κάθε ομάδας σε NBA/Ευρωλίγκα. Δεν έχει επιβεβαιωθεί βελτίωση ακρίβειας.')
+        model_key = 'analysis:'+game['key']+(':pace-v2' if pace_mode else ':classic-v2')
         if st.button('Υπολογισμός με πραγματικά δεδομένα', type='primary'):
             st.session_state.pop(model_key, None)
             try:
-                with st.spinner('Αναζήτηση των τελευταίων 10 πραγματικών αγώνων ανά ομάδα…'):
+                with st.spinner('Αναζήτηση έως 10 πιο πρόσφατων πραγματικών αγώνων ανά ομάδα…'):
                     history = data.history(game)
                     model = analyse(game, history)
                     if model and pace_mode:
@@ -172,14 +174,21 @@ with match_tab:
                         st.warning(warning)
                 else:
                     counts = {game['teams'][s]['name']: len(recent_games(history, game, s)) for s in ['home', 'away']}
-                    if pace_mode and all(n == 10 for n in counts.values()):
-                        st.warning('Δεν υπάρχουν επαληθευμένα αναλυτικά στατιστικά για όλους τους τελευταίους 10 αγώνες κάθε ομάδας. Δες την «Κατάσταση πηγών» ή επίλεξε το κλασικό μοντέλο.')
+                    if pace_mode and game['league'] not in {'nba', 'euroleague'}:
+                        st.warning('Το μοντέλο ρυθμού υποστηρίζει NBA/Ευρωλίγκα. Για την Ελλάδα επίλεξε το κλασικό μοντέλο.')
+                    elif pace_mode and all(n > 0 for n in counts.values()):
+                        st.warning('Δεν υπάρχουν επαληθευμένα αναλυτικά στατιστικά για όλους τους επιλεγμένους πρόσφατους αγώνες. Δες την «Κατάσταση πηγών» ή επίλεξε το κλασικό μοντέλο.')
                     else:
-                        st.warning(f'Αποχή: χρειάζονται 10 αγώνες ανά ομάδα πριν από τον επιλεγμένο αγώνα. Διαθέσιμοι: {counts}.')
+                        st.warning(f'Αποχή: χρειάζεται τουλάχιστον 1 ολοκληρωμένος αγώνας ανά ομάδα πριν από τον επιλεγμένο αγώνα. Διαθέσιμοι: {counts}.')
             except (DataError, StorageError, ValueError) as error:
                 st.error(str(error))
         model = st.session_state.get(model_key)
         if model:
+            counts = model['history_counts']
+            st.caption('Ιστορικό που χρησιμοποιήθηκε: '+' · '.join(
+                f"{game['teams'][side]['name']}: {counts[side]}/10 αγώνες" for side in ['home', 'away']))
+            if min(counts.values()) < 10:
+                st.warning('Μικρότερο δείγμα: χρησιμοποιούνται οι διαθέσιμοι αγώνες, με όριο τους 10 πιο πρόσφατους ανά ομάδα.')
             st.metric('Αναμενόμενοι πόντοι μοντέλου', f"{model['mu_home']:.1f} — {model['mu_away']:.1f}")
             if pace_mode:
                 st.caption('Πειραματική Normal προσέγγιση με προσαρμογή αναμενόμενων πόντων στις εκτιμώμενες κατοχές και την αποτελεσματικότητα. Βάρη ημιζωής 90 ημερών. Η διακύμανση παραμένει αυτή του κλασικού μοντέλου και δεν έχει βαθμονομηθεί για αυτή την προσαρμογή.')

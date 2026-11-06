@@ -44,7 +44,8 @@ def main():
     h = history(f)
     model = analyse(f, h)
     assert model and len(model['input_games']['home']) == len(model['input_games']['away']) == 10
-    assert analyse(f, h[:9]) is None
+    assert analyse(f, h[:9])['history_counts'] == {'home':5, 'away':4}
+    assert analyse(f, []) is None
     newer = fixture('999', datetime.fromisoformat(f['kickoff'])+timedelta(days=1), score=(150, 50))
     older = fixture('998', NOW-timedelta(days=100), score=(150, 50))
     other = deepcopy(h[0]); other['league'] = 'euroleague'

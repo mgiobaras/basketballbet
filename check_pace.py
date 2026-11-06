@@ -140,7 +140,7 @@ def ui_check():
         app.multiselect[0].select('over').run()
         next(b for b in app.button if b.label == 'Αποθήκευση επιλογών').click().run()
         record = Store(directory+'/bets.sqlite3').list()[0]
-        assert record['model']['model_version'] == 'basket-last10-possessions-v1'
+        assert record['model']['model_version'] == 'basket-up-to10-possessions-v2'
         assert len(record['model']['boxscore_inputs']) == 20 and record['odds'] == 1.9
         next(s for s in app.selectbox if s.label == 'Μοντέλο υπολογισμού').select_index(0).run()
         assert not app.exception and not any(m.label == 'Αναμενόμενοι πόντοι μοντέλου' for m in app.metric)

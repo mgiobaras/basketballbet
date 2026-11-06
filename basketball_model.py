@@ -1,4 +1,4 @@
-"""Observed last-ten basketball scores; no fabricated team priors or modifiers."""
+"""Up to ten recent observed basketball scores per team; no fabricated priors."""
 from datetime import datetime, timezone
 from math import erf, floor, isfinite, sqrt
 import numpy as np
@@ -45,7 +45,7 @@ def recent_games(history, fixture, side):
 
 def analyse(fixture, history):
     groups = [recent_games(history, fixture, s) for s in ['home', 'away']]
-    if any(len(g) < 10 for g in groups):
+    if any(not games for games in groups):
         return None
     profiles = []
     for side, games in zip(['home', 'away'], groups):
@@ -60,7 +60,8 @@ def analyse(fixture, history):
     variance_home, variance_away = (hv[0]+av[1])/2, (av[0]+hv[1])/2
     # Independent Normal approximation to observed points. No arbitrary variance floor.
     return {'mu_home': mu_home, 'mu_away': mu_away, 'variance': variance_home+variance_away,
-            'model_version': 'basket-last10-normal-v1',
+            'model_version': 'basket-up-to10-normal-v2',
+            'history_counts': {side: len(games) for side, games in zip(['home', 'away'], groups)},
             'input_games': {side: [g['key'] for g in games] for side, games in zip(['home', 'away'], groups)},
             'input_sources': sorted({g['source'] for games in groups for g in games})}
 

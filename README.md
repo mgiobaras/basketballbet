@@ -1,12 +1,12 @@
 # BasketballBet
 
-Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-BROWSER-ODDS1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
+Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-HISTORY-FLEX1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
 
 ## Ελληνική Basket League — 06/11/2026
 
 Για την Ελλάδα προηγείται πλέον το επίσημο πρόγραμμα/αποτελέσματα του [ΕΣΑΚΕ](https://www.esake.gr/el/action/EsakePrograms), με εναλλακτική το Sofascore. Δεν απαιτείται νέο κλειδί. Η επιλογή ημερομηνίας αφορά Europe/Athens· επίλεξε 07/11 ή 08/11 για τους αντίστοιχους αγώνες του Σαββατοκύριακου. Δεν καταχωρίζονται στατικοί αγώνες στον κώδικα.
 
-Η πηγή διαβάζει την πραγματικά επιλεγμένη διοργάνωση/σεζόν, τις ομάδες με τα επίσημα αναγνωριστικά τους και τις δημοσιευμένες ώρες. Ασαφείς ώρες/TBA και άγνωστες σεζόν απορρίπτονται. Η ανάγνωση των επιλογών υποστηρίζει τα HTML defaults (πρώτη επιλογή όταν δεν υπάρχει selected), διαφορετικό id/name του πεδίου και προαιρετικά κλεισίματα option. Αν υπάρχει αρχική κενή επιλογή, η σεζόν γίνεται δεκτή μόνο με μοναδικό επιβεβαιωμένο τίτλο GBL που συμφωνεί με τον κατάλογο. Αν το πρόγραμμα δεν παρέχει επαληθεύσιμη φόρμα, δοκιμάζεται και το επίσημο EsakeResults. Η ζητούμενη σεζόν/φάση εξακολουθεί να ελέγχεται σε κάθε αγωνιστική. Το τρέχον πρόγραμμα επαναχρησιμοποιείται από cache 120s. Για άλλες ημερομηνίες και ιστορικό αναζητούνται οι δημοσιευμένες αγωνιστικές/φάσεις της σεζόν, με περιορισμένη παράλληλη ανάκτηση και cache 600s. Το μοντέλο εξακολουθεί να απαιτεί 10 προηγούμενους ολοκληρωμένους αγώνες ανά ομάδα· ελλείπον ιστορικό παραμένει έλλειψη. Ο ΕΣΑΚΕ παρέχει πρόγραμμα/αποτελέσματα, όχι αποδόσεις στοιχηματικών.
+Η πηγή διαβάζει την πραγματικά επιλεγμένη διοργάνωση/σεζόν, τις ομάδες με τα επίσημα αναγνωριστικά τους και τις δημοσιευμένες ώρες. Ασαφείς ώρες/TBA και άγνωστες σεζόν απορρίπτονται. Η ανάγνωση των επιλογών υποστηρίζει τα HTML defaults (πρώτη επιλογή όταν δεν υπάρχει selected), διαφορετικό id/name του πεδίου και προαιρετικά κλεισίματα option. Αν υπάρχει αρχική κενή επιλογή, η σεζόν γίνεται δεκτή μόνο με μοναδικό επιβεβαιωμένο τίτλο GBL που συμφωνεί με τον κατάλογο. Αν το πρόγραμμα δεν παρέχει επαληθεύσιμη φόρμα, δοκιμάζεται και το επίσημο EsakeResults. Η ζητούμενη σεζόν/φάση εξακολουθεί να ελέγχεται σε κάθε αγωνιστική. Το τρέχον πρόγραμμα επαναχρησιμοποιείται από cache 120s. Για άλλες ημερομηνίες και ιστορικό αναζητούνται οι δημοσιευμένες αγωνιστικές/φάσεις της σεζόν, με περιορισμένη παράλληλη ανάκτηση και cache 600s. Το μοντέλο χρησιμοποιεί όσους διαθέσιμους προηγούμενους ολοκληρωμένους αγώνες βρίσκει ανά ομάδα, με όριο τους10 πιο πρόσφατους και ελάχιστο1 ανά ομάδα· δεν συμπληρώνει υποθετικά αγώνες. Ο ΕΣΑΚΕ παρέχει πρόγραμμα/αποτελέσματα, όχι αποδόσεις στοιχηματικών.
 
 Διορθώθηκε και το φίλτρο Sofascore: αναγνωρίζει το σταθερό αναγνωριστικό της ανδρικής διοργάνωσης 304 και τις ονομασίες `stoiximan-basket-league` / `stoiximan-gbl`, με έλεγχο χώρας, αποκλείοντας άλλες διοργανώσεις όπως το κύπελλο 608.
 
@@ -24,7 +24,7 @@ Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-BROWSER-O
 
 Στο «Μοντέλο υπολογισμού» παραμένει προεπιλεγμένο το κλασικό μοντέλο. Η επιλογή «Ρυθμός & αποτελεσματικότητα — πειραματικό» προσθέτει αναλυτικά ομαδικά στατιστικά για NBA και Ευρωλίγκα. Δεν έχει αποδειχθεί βελτίωση ακρίβειας ή κερδοφορίας.
 
-- Χρησιμοποιεί ακριβώς τους ίδιους τελευταίους 10 ολοκληρωμένους αγώνες ανά ομάδα, στην ίδια διοργάνωση και πριν από την έναρξη του επιλεγμένου αγώνα. Αν λείπει κάποιο αναλυτικό box score, δεν αντικαθιστά τον αγώνα με παλαιότερο και δεν κατασκευάζει τιμές. Μπορείς να επιλέξεις το κλασικό μοντέλο.
+- Χρησιμοποιεί τους ίδιους διαθέσιμους έως10 πιο πρόσφατους ολοκληρωμένους αγώνες ανά ομάδα, στην ίδια διοργάνωση και πριν από την έναρξη του επιλεγμένου αγώνα. Αν λείπει κάποιο αναλυτικό box score, δεν αντικαθιστά τον αγώνα με παλαιότερο και δεν κατασκευάζει τιμές. Μπορείς να επιλέξεις το κλασικό μοντέλο.
 - Εκτίμηση κατοχών ανά ομάδα: `FGA - ORB + TOV + 0.44 × FTA`. Οι κατοχές του αγώνα είναι ο μέσος όρος των δύο ομάδων. Πρόκειται για προσέγγιση από το box score, όχι καταμέτρηση κάθε πραγματικής κατοχής.
 - Επίθεση/άμυνα: πόντοι υπέρ/κατά ανά 100 εκτιμώμενες κατοχές. Ρυθμός: κατοχές ανά 48 λεπτά στο NBA ή 40 στην Ευρωλίγκα, προσαρμοσμένες στην πραγματική διάρκεια μαζί με τις παρατάσεις. Ίδια βάρη ημιζωής 90 ημερών με το κλασικό μοντέλο.
 - Οι αναμενόμενες συνολικές κατοχές είναι ο μέσος όρος των ιστορικών κατοχών ανά αγώνα των δύο ομάδων, μαζί με την ιστορική επίδραση παρατάσεων. Πόντοι γηπεδούχου = αναμενόμενες κατοχές × μέσος όρος δικής του επίθεσης και αντίπαλης άμυνας / 100, αντίστοιχα για φιλοξενούμενο. Η Normal διακύμανση παραμένει η εμπειρική διακύμανση πόντων του κλασικού μοντέλου· η νέα προσέγγιση δεν έχει βαθμονομηθεί/backtested. Δεν προσαρμόζεται στη συνολική δυναμικότητα των αντιπάλων.
@@ -54,7 +54,7 @@ Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-BROWSER-O
 
 ## Πρόβλεψη
 
-Χρησιμοποιούνται μόνο οι **10 τελευταίοι πραγματικοί ολοκληρωμένοι αγώνες ανά ομάδα στην ίδια διοργάνωση**, πριν από τον επιλεγμένο αγώνα. Όταν λείπει το δείγμα, η εφαρμογή δείχνει τους πραγματικούς διαθέσιμους αριθμούς και απέχει.
+Χρησιμοποιούνται οι **διαθέσιμοι έως10 πιο πρόσφατοι πραγματικοί ολοκληρωμένοι αγώνες ανά ομάδα στην ίδια διοργάνωση**, πριν από τον επιλεγμένο αγώνα. Με5 αγώνες χρησιμοποιούνται5· αν η άλλη ομάδα έχει3, χρησιμοποιούνται οι δικοί της3. Με περισσότερους από10 επιλέγονται πάντα οι10 νεότεροι. Αν μια ομάδα δεν έχει κανέναν έγκυρο προηγούμενο αγώνα, ο υπολογισμός απέχει. Η εφαρμογή εμφανίζει το πραγματικό πλήθος ανά ομάδα και ένδειξη μικρότερου δείγματος.
 
 Σταθμισμένοι πόντοι υπέρ/κατά με ημιζωή90 ημερών, μέσος της επίθεσης της ομάδας και της άμυνας του αντιπάλου. Οι διακυμάνσεις προέρχονται από τις ίδιες παρατηρήσεις. Το πειραματικό μοντέλο χρησιμοποιεί ανεξάρτητη Normal προσέγγιση των πόντων, με διόρθωση ακέραιων σκορ και χωριστή πιθανότητα επιστροφής σε ακέραια γραμμή. Δεν μεταφέρεται η Poisson ποδοσφαίρου σε πόντους μπάσκετ. Δεν υπάρχουν υποθετικοί μέσοι όροι ομάδων, σταθερό πλεονέκτημα έδρας, συντελεστές ξεκούρασης, τεχνητά κατώφλια σκορ/διακύμανσης ή Kelly.
 
@@ -340,3 +340,32 @@ Existing basketball, Greek/EuroLeague alias, recorded Paf and actual ESAKE
 capture checks also pass. These checks do not claim a live Paf CORS response or
 Greek prices; the country listing's live availability must be confirmed in the
 hosted application. Selected bets/history/models/database setup are unchanged.
+
+### Available history: HISTORY-FLEX1
+
+The ten-game minimum is removed from the shared basketball analysis function.
+Each team uses its independently selected latest 1..10 completed games in the
+same competition before the target kickoff. Existing source retrieval/fallback
+rules are unchanged; missing observations are not padded, duplicated or replaced
+with synthetic priors. `recent_games` still sorts by kickoff descending and
+caps at10, so every newly observed qualifying game can replace the oldest when
+the window is full. No training or retrospective rewriting is performed.
+
+Weighted means and empirical variances use the actual available observations;
+the formulas for a full ten-game sample remain numerically unchanged. Model
+snapshots now include `history_counts` and versions `basket-up-to10-normal-v2`
+and `basket-up-to10-possessions-v2`. Pace mode remains limited to NBA/EuroLeague
+and requires verified box scores for every selected available game; it does
+not replace missing recent box scores with older games. The UI shows per-team
+sample counts, explains smaller samples and distinguishes missing history from
+missing/unsupported pace statistics. Existing model-mode widget values migrate
+safely and calculation state uses new model keys.
+
+`python check_available_history.py` passed:5/5 and5/3 observations, independent
+hand-calculated expected means, minimum1 and zero-history abstention, future and
+wrong-league exclusion, deduplication,11+ observations and replacement of the
+oldest game, finite normalized distributions, short pace samples with complete
+box scores, and Greek Streamlit calculation/log/save with5 games. An existing
+v1 selected-bet record remains unchanged after the new analysis
+and save. Existing basketball and pace checks also passed. Source prices,
+browser odds retrieval, saved probabilities, past history and SQL are unchanged.
