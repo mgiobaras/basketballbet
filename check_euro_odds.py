@@ -28,6 +28,16 @@ TEAMS = [
     ('Valencia Basket', 'Valencia Basket'), ('Virtus Bologna', 'Virtus Bologna'),
     ('Zalgiris Kaunas', 'Kauno Žalgiris')]
 
+# Same club order as TEAMS. Exact Paf spellings from the owner's Nov4–6
+# diagnostics/messages and public listing, including its recorded encoding.
+PAF_NAMES = [
+    'Anadolu Efes', 'Milano', 'Besiktas', 'KK Crvena Zvezda Belgrade',
+    'BC Dubai', 'FC Barcelona', 'FC Bayern München', 'Fenerbahce SK',
+    'Hapoel Tel Aviv', 'Saski Baskonia', 'ASVEL Lyon-Villeurbanne',
+    'Maccabi Tel Aviv', 'Olympiacos BC', 'Panathinaikos', 'Paris Basket',
+    'Partizan Belgrade', 'Real Madrid Baloncesto', 'Valencia Basket Club',
+    'Virtus Bologna', 'Å½algiris Kaunas']
+
 
 def main():
     now = datetime.now(timezone.utc)
@@ -47,7 +57,12 @@ def main():
         (('LDLC ASVEL Villeurbanne', 'FC Bayern Munich'), ('ASVEL Lyon-Villeurbanne', 'FC Bayern München')),
         (('Hapoel IBI Tel Aviv', 'FC Barcelona'), ('Hapoel Tel Aviv', 'FC Barcelona')),
         (('Fenerbahce Tarfin Istanbul', 'Kosner Baskonia Vitoria-Gasteiz'), ('Fenerbahce SK', 'Saski Baskonia')),
-        (('Anadolu Efes Istanbul', 'Paris Basketball'), ('Anadolu Efes', 'Paris Basket'))]
+        (('Anadolu Efes Istanbul', 'Paris Basketball'), ('Anadolu Efes', 'Paris Basket')),
+        # Exact names in the owner's recorded 2026-11-06 Paf listing.
+        (('Olympiacos Piraeus', 'Crvena Zvezda Meridianbet Belgrade'),
+         ('Olympiacos BC', 'KK Crvena Zvezda Belgrade')),
+        (('Partizan Mozzarbet Belgrade', 'Maccabi Rapyd Tel Aviv'),
+         ('Partizan Belgrade', 'Maccabi Tel Aviv'))]
     for official, provider_names in paf_matches:
         target, candidate = deepcopy(game), deepcopy(native)
         for index, side in enumerate(['home', 'away']):
@@ -62,12 +77,19 @@ def main():
             wrong = deepcopy(candidate)
             wrong['teams']['home']['name'] = other_official[0]
             assert matching(target, [wrong], exact_time=True) is None
-    for official, sofa in TEAMS:
+    assert len(PAF_NAMES) == len(TEAMS) == 20
+    for index, (official, sofa) in enumerate(TEAMS):
         assert name_key(official) == name_key(sofa), (official, sofa)
+        assert name_key(official) == name_key(PAF_NAMES[index]), (official, PAF_NAMES[index])
         target, candidate = deepcopy(game), deepcopy(native)
+        anchor = (index+1) % len(TEAMS)
+        target['teams']['home']['name'] = TEAMS[anchor][0]
+        candidate['teams']['home']['name'] = PAF_NAMES[anchor]
         target['teams']['away']['name'] = official
-        candidate['teams']['away']['name'] = sofa
+        candidate['teams']['away']['name'] = PAF_NAMES[index]
         assert matching(target, [candidate], exact_time=True) is candidate
+        assert matching(target, [dict(candidate, teams={'home':candidate['teams']['away'],
+                                                       'away':candidate['teams']['home']})], exact_time=True) is None
         assert matching(target, [candidate, deepcopy(candidate)], exact_time=True) is None
         for other, _ in TEAMS:
             if other == official:
@@ -124,7 +146,7 @@ def main():
         missing, notes = data.quotes(game)
         assert not missing and any('αντιστοίχιση' in n for n in notes)
         assert not any('/odds/' in call.args[0] for call in http.object.call_args_list)
-    print('PASS EuroLeague: all 20 names; 380 wrong-team pairs rejected; ambiguous/date/league/home-away guards; Real-Panathinaikos six-market fallback, signed lines, persistence and UI; source diagnostics')
+    print('PASS EuroLeague: official/Sofascore/Paf names for all20 clubs; 380 wrong-team pairs rejected; ambiguous/date/league/home-away guards; Real-Panathinaikos six-market fallback, signed lines, persistence and UI; source diagnostics')
 
 
 if __name__ == '__main__':

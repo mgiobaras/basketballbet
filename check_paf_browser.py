@@ -11,7 +11,7 @@ from pathlib import Path
 import tempfile
 from unittest.mock import Mock, patch
 
-from basketball_data import DataError, Paf, paf_event, paf_quotes
+from basketball_data import DataError, Paf, matching, paf_event, paf_quotes
 from basketball_store import Store
 from check_greek_odds import row_for
 from paf_browser import BrowserHTTP, browser_quotes
@@ -103,6 +103,26 @@ def main(capture=None):
         euro = [r for r in data['events'] if paf_event(r,'euroleague')]
         assert len(euro) == 4
         assert all(len(paf_quotes(r,paf_event(r,'euroleague'),now.isoformat(),'owner-browser-capture')) == 2 for r in euro)
+        for event_id, names in [
+            (1028562785, ('Besiktas Istanbul', 'Zalgiris Kaunas')),
+            (1028562789, ('Olympiacos Piraeus', 'Crvena Zvezda Meridianbet Belgrade')),
+            (1028562792, ('Virtus Bologna', 'Dubai Basketball')),
+            (1028562752, ('Partizan Mozzarbet Belgrade', 'Maccabi Rapyd Tel Aviv'))]:
+            row = next(r for r in euro if r['event']['id'] == event_id)
+            target = deepcopy(paf_event(row,'euroleague'))
+            target.update(key='euroleague:recorded:'+str(event_id), source='euroleague')
+            for side, name in zip(['home','away'], names):
+                target['teams'][side]['name'] = name
+            assert matching(target,[paf_event(r,'euroleague') for r in euro],exact_time=True)
+            found = paf_quotes(row,target,now.isoformat(),'owner-browser-capture')
+            assert {q['market'] for q in found} == {'home','away'}
+            assert all(q['fixture_key'] == target['key'] for q in found)
+            # Never substitute another club or exchange home and away.
+            wrong = deepcopy(target); wrong['teams']['home']['name'] = 'Unrelated club'
+            assert not paf_quotes(row,wrong,now.isoformat(),'owner-browser-capture')
+            reversed_target = dict(target,teams={'home':target['teams']['away'],'away':target['teams']['home']})
+            assert not paf_quotes(row,reversed_target,now.isoformat(),'owner-browser-capture')
+        print('PASS all four actual EuroLeague fixtures match official club names, including Olympiacos–Crvena Zvezda and Partizan–Maccabi; two recorded moneylines each, wrong/reversed clubs rejected')
         print('PASS owner browser capture: 103 actual events, four EuroLeague moneylines, no Greek events; never treated as live app odds')
     print('PASS browser adapter: source allowlist, staged listing/details, exact existing parser, immutable receipts, scoped cache, stale response rejection, errors and Streamlit metrics after server410')
 

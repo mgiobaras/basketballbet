@@ -185,6 +185,22 @@ def ui_check():
         assert all(n.value is None for n in app.number_input)
         assert any(n.label == 'Απόδοση Νίκη Team 1' for n in app.number_input)
         assert any(n.label == 'Απόδοση Νίκη Team 2' for n in app.number_input)
+        # Manual prices remain saveable once their actual bookmaker is entered.
+        next(n for n in app.number_input if n.label == 'Line Under').set_value(200.5).run(timeout=30)
+        next(n for n in app.number_input if n.label == 'Απόδοση Under').set_value(1.91).run(timeout=30)
+        app.multiselect[0].select('under').run(timeout=30)
+        assert next(b for b in app.button if b.label == 'Αποθήκευση επιλογών').disabled
+        app.text_input[0].set_value('Controlled manual company').run(timeout=30)
+        save = next(b for b in app.button if b.label == 'Αποθήκευση επιλογών')
+        assert not save.disabled
+        save.click().run(timeout=30)
+        assert not app.exception
+        saved = Store(directory+'/bets.sqlite3').list()
+        manual = next(r for r in saved if r['market'] == 'under')
+        assert manual['odds'] == 1.91 and manual['line'] == 200.5
+        assert manual['quote']['source'] == 'Χειροκίνητη καταχώριση'
+        assert manual['quote']['bookmaker'] == 'Controlled manual company'
+        assert next(r for r in saved if r['market'] == 'over') == records[0]
     print('PASS UI: all3 competitions, automatic total line/odds, no source selector, manual absences, prediction, immutable save, empty manual fields')
 
 

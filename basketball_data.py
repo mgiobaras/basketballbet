@@ -33,6 +33,7 @@ ALIASES = {'la clippers': 'los angeles clippers', 'la lakers': 'los angeles lake
            'besiktas gain istanbul': 'besiktas', 'besiktas emlakjet': 'besiktas',
            'crvena zvezda meridianbet belgrade': 'crvena zvezda',
            'kk crvena zvezda meridianbet': 'crvena zvezda', 'kk crvena zvezda': 'crvena zvezda',
+           'kk crvena zvezda belgrade': 'crvena zvezda',
            'bc dubai': 'dubai basketball', 'barca basket': 'barcelona',
            'fc bayern munich': 'bayern munich', 'bayern munchen': 'bayern munich',
            'fenerbahce tarfin istanbul': 'fenerbahce', 'fenerbahce tarfin': 'fenerbahce',
@@ -44,9 +45,12 @@ ALIASES = {'la clippers': 'los angeles clippers', 'la lakers': 'los angeles lake
            'asvel lyon villeurbanne': 'asvel',
            'maccabi rapyd tel aviv': 'maccabi tel aviv', 'maccabi playtika tel aviv': 'maccabi tel aviv',
            'partizan mozzarbet belgrade': 'partizan', 'partizan mozzart bet belgrade': 'partizan',
-           'kk partizan mozzart bet': 'partizan',
+           'kk partizan mozzart bet': 'partizan', 'partizan belgrade': 'partizan',
            'virtus segafredo bologna': 'virtus bologna', 'zalgiris kaunas': 'zalgiris',
-           'kauno zalgiris': 'zalgiris'}
+           'kauno zalgiris': 'zalgiris',
+           # Exact normalized spelling of "Å½algiris Kaunas" in the owner's
+           # pasted Paf listing; do not guess/repair unrelated club names.
+           'a1 2algiris kaunas': 'zalgiris'}
 
 
 class DataError(RuntimeError):
@@ -891,7 +895,7 @@ class BasketballData:
         def snapshot():
             quotes, errors = load()
             return {'quotes': quotes, 'errors': errors, 'paf_diagnostics': self.paf.diagnostics}
-        result = self.store.cached(f'quotes:v12:{scope}:{game["key"]}:{refresh}', snapshot, 90)
+        result = self.store.cached(f'quotes:v13:{scope}:{game["key"]}:{refresh}', snapshot, 90)
         self.paf.diagnostics = result['paf_diagnostics']
         return result['quotes'], result['errors']
 

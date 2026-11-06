@@ -18,7 +18,7 @@ from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_pre
 from paf_browser import browser_quotes
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-06-HISTORY-FETCH1'
+APP_VERSION = 'BASKET-2026-11-06-EURO-NAMES1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
