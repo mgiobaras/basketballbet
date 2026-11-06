@@ -59,6 +59,28 @@ def name_key(value):
     return ALIASES.get(value, value)
 
 
+# Explicit club identities for ESAKE's Greek labels and English odds feeds.
+# Keep sponsor spellings here; do not transliterate/fuzzily match unknown teams.
+GREEK_TEAMS = {
+    'doxa lefkadas': ('ΔΟΞΑ ΛΕΥΚΑΔΑΣ ELABET', 'Δόξα Λευκάδας', 'Doxa Lefkadas', 'Doxa Lefkada', 'Doxa Levkadas'),
+    'aris': ('ΑΡΗΣ', 'Aris', 'Aris Thessaloniki', 'Aris BC'),
+    'kolossos rhodes': ('ΚΟΛΟΣΣΟΣ H HOTELS COLLECTION', 'Κολοσσός Ρόδου', 'Kolossos Rhodes', 'Kolossos Rodou', 'Kolossos H Hotels'),
+    'peristeri': ('ΠΕΡΙΣΤΕΡΙ Betsson', 'Περιστέρι', 'Peristeri', 'Peristeri Athens', 'Peristeri Betsson'),
+    'iraklis': ('ΗΡΑΚΛΗΣ', 'Iraklis', 'Iraklis Thessaloniki', 'Iraklis BC', 'Heraklis'),
+    'mykonos': ('ΜΥΚΟΝΟΣ Betsson BC', 'Μύκονος', 'Mykonos', 'Mykonos BC', 'AO Mykonou'),
+    'promitheas patras': ('ΠΡΟΜΗΘΕΑΣ ΠΑΤΡΑΣ ΒΙΚΟΣ COLA', 'Προμηθέας Πάτρας', 'Promitheas Patras', 'Promitheas'),
+    'karditsa': ('ΚΑΡΔΙΤΣΑ ΙΑΠΩΝΙΚΗ', 'Καρδίτσα', 'Karditsa', 'AS Karditsas', 'ASK Karditsas', 'AS Attiki Karditsas'),
+    'paok': ('ΠΑΟΚ', 'PAOK', 'PAOK Thessaloniki', 'PAOK Saloniki', 'PAOK BC'),
+    'vikos falcons': ('VIKOS ΦALCONS', 'Vikos Falcons', 'Vikos Falcons Ioannina', 'Vikos BC', 'Vikos Ioanninon'),
+    'aek athens': ('ΑΕΚ', 'AEK', 'AEK Athens', 'AEK Betsson'),
+    'panathinaikos': ('ΠΑΝΑΘΗΝΑΪΚΟΣ AKTOR', 'Παναθηναϊκός', 'Panathinaikos', 'Panathinaikos AKTOR'),
+    'maroussi': ('ΜΑΡΟΥΣΙ', 'Maroussi', 'Marousi', 'Maroussi BC', 'Maroussi Athens'),
+    'olympiacos': ('ΟΛΥΜΠΙΑΚΟΣ', 'Olympiacos', 'Olympiakos'),
+}
+for canonical, names in GREEK_TEAMS.items():
+    ALIASES.update({name_key(name): canonical for name in names})
+
+
 def identity(game):
     return (game['league'], instant(game['kickoff']).date(), *(name_key(game['teams'][s]['name']) for s in ['home', 'away']))
 
@@ -313,7 +335,14 @@ def paf_event(row, league):
     groups = {name_key(event.get('group', ''))}
     groups.update(name_key(p.get(k, '')) for p in event.get('path') or [] if isinstance(p, dict)
                   for k in ['termKey', 'englishName', 'name'])
-    allowed = {'euroleague': {'euroleague', 'euroleague men'}, 'nba': {'nba'}}
+    allowed = {'euroleague': {'euroleague', 'euroleague men'}, 'nba': {'nba'},
+               'greece': {'gbl', 'stoiximan gbl', 'a1', 'a1 men', 'a1 league', 'basket league',
+                          'greek basket league', 'greece basket league', 'greece gbl', 'greece a1'}}
+    if league == 'greece':
+        greek = any('greece' in label.split() or label == 'greek basket league' for label in groups)
+        excluded = any(re.search(r'\b(w|women|womens|woman|female|ladies|cup|a2|elite league|u\d+|under \d+|3x3|γυναικ\w*|κυπελλ\w*)\b', label) for label in groups)
+        if not greek or excluded:
+            return None
     if (event.get('sport') != 'BASKETBALL' or not groups.intersection(allowed.get(league, set()))
             or event.get('state') != 'NOT_STARTED' or not str(event.get('id', '')).isdigit()):
         return None
@@ -411,13 +440,14 @@ def paf_quotes(row, game, receipt, url):
 class Paf:
     BASE = 'https://eu-offering-api.kambicdn.com/offering/v2018/paf'
     PARAMS = {'lang': 'en_GB', 'market': 'GB', 'client_id': 2, 'channel_id': 1}
+    LEAGUES = {'euroleague', 'greece'}
 
     def __init__(self, store, http):
         self.store, self.http = store, http
         self.diagnostics = {}
 
     def quotes(self, game, refresh=0):
-        if game['league'] != 'euroleague' or game['status'] != 'NS' or instant(game['kickoff']) <= datetime.now(timezone.utc):
+        if game['league'] not in self.LEAGUES or game['status'] != 'NS' or instant(game['kickoff']) <= datetime.now(timezone.utc):
             return [], []
         self.diagnostics = {'requested': {k: game[k] for k in ['key', 'league', 'kickoff', 'teams']},
                             'recorded_at': datetime.now(timezone.utc).isoformat()}
@@ -441,7 +471,7 @@ class Paf:
         self.diagnostics['source_events'] = [
             {k: row['event'][k] for k in event_fields if k in row['event']}
             for row in rows if isinstance(row, dict) and isinstance(row.get('event'), dict)]
-        found = [row for row in rows if (native := paf_event(row, 'euroleague')) is not None
+        found = [row for row in rows if (native := paf_event(row, game['league'])) is not None
                  and matching(game, [native], exact_time=True) is not None]
         if len(found) != 1:
             requested = instant(game['kickoff'])
@@ -457,7 +487,7 @@ class Paf:
                 if start.astimezone(ZoneInfo('Europe/Athens')).date() != requested.astimezone(ZoneInfo('Europe/Athens')).date():
                     continue
                 score = sum(name_key(event.get(s+'Name', '')) == name_key(game['teams'][s]['name']) for s in ['home', 'away'])
-                native = paf_event(row, 'euroleague')
+                native = paf_event(row, game['league'])
                 summary = (f"{event.get('homeName', '?')} — {event.get('awayName', '?')} | "
                            f"{start.astimezone(ZoneInfo('Europe/Athens')):%d/%m %H:%M} | "
                            f"{event.get('group', '?')} | {event.get('state', '?')} | "
@@ -810,6 +840,8 @@ class BasketballData:
             if game['status'] != 'NS' or instant(game['kickoff']) <= datetime.now(timezone.utc):
                 return quotes, errors
             for source in self.order(game['league']):
+                if source == 'esake':
+                    continue  # Official programme/results do not publish bookmaker prices.
                 try:
                     native = self.native(game, source)
                     if native is None:
@@ -827,7 +859,7 @@ class BasketballData:
                         break
                 except DataError as error:
                     errors.append(str(error))
-            if len({q['market'] for q in quotes}) < 6 and game['league'] == 'euroleague':
+            if len({q['market'] for q in quotes}) < 6 and game['league'] in Paf.LEAGUES:
                 try:
                     found, notes = self.paf.quotes(game, refresh)
                     quotes.extend(q for q in found if not any(old['market'] == q['market'] for old in quotes))
@@ -847,7 +879,7 @@ class BasketballData:
         def snapshot():
             quotes, errors = load()
             return {'quotes': quotes, 'errors': errors, 'paf_diagnostics': self.paf.diagnostics}
-        result = self.store.cached(f'quotes:v10:{scope}:{game["key"]}:{refresh}', snapshot, 90)
+        result = self.store.cached(f'quotes:v11:{scope}:{game["key"]}:{refresh}', snapshot, 90)
         self.paf.diagnostics = result['paf_diagnostics']
         return result['quotes'], result['errors']
 

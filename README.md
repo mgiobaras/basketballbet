@@ -1,6 +1,6 @@
 # BasketballBet
 
-Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-GREECE3**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
+Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-GREECE-ODDS1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
 
 ## Ελληνική Basket League — 06/11/2026
 
@@ -42,7 +42,7 @@ Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-GREECE3**
 
 - NBA: ESPN → Sofascore.
 - EuroLeague: επίσημο EuroLeague API για αγώνες/σκορ· αποδόσεις από διαθέσιμες δημόσιες πηγές και αυτόματη εναλλακτική Paf, εφόσον επιστρέφουν στοιχεία.
-- Ελλάδα: επίσημο πρόγραμμα/αποτελέσματα ΕΣΑΚΕ → Sofascore. Αν αποτύχουν, η εφαρμογή δείχνει την αποτυχία χωρίς στατικούς αγώνες ή μέσους όρους.
+- Ελλάδα: πρόγραμμα/αποτελέσματα ΕΣΑΚΕ → Sofascore. Αποδόσεις Sofascore → Paf, όταν δημοσιεύονται. Ο ΕΣΑΚΕ δεν ερωτάται για τιμές στοιχηματικών. Αποτυχίες εμφανίζονται χωρίς υποθετικές αποδόσεις ή γραμμές.
 
 Οι διαφορετικές πηγές συνδέονται μόνο με ίδια διοργάνωση, γηπεδούχο/φιλοξενούμενο, ακριβή ονόματα/ρητά aliases και πραγματική ώρα έναρξης. Δεν γίνεται fuzzy αντιστοίχιση. Σκορ που διαφωνούν ή αμφίβολη ταυτότητα σταματούν τον υπολογισμό.
 
@@ -159,7 +159,7 @@ python check_cloud_storage.py
 ### Αυτόματη εναλλακτική Paf χωρίς κλειδί
 
 Η έκδοση `BASKET-EURO-ODDS3` προσθέτει δημόσια τροφοδοσία Paf/Kambi ως
-εναλλακτική για αποδόσεις Ευρωλίγκας, πριν από το προαιρετικό The Odds API.
+εναλλακτική για αποδόσεις Ευρωλίγκας και ελληνικής Basket League. Στην Ευρωλίγκα ακολουθεί το προαιρετικό The Odds API.
 Δεν απαιτείται λογαριασμός, νέο Secret ή συνδρομή για την ενεργοποίηση του κώδικα.
 Δεν χρησιμοποιούνται σταθερές αρχικές αποδόσεις ως αυτόματες τιμές.
 
@@ -266,3 +266,31 @@ lists. Basketball data/model/storage/UI checks also passed. The uploaded JSON
 and full HTML are kept outside the repository. This is replay of real hosted
 responses, not a new live HTTP test from this development environment or proof
 that the live provider will never change its output.
+
+### Greek automatic odds: GREECE-ODDS1
+
+ESAKE supplies fixtures/results, not bookmaker prices. Previously Greece tried
+only ESAKE's empty quote method and Sofascore; Paf was gated to EuroLeague.
+The quote route now skips ESAKE and tries Paf after Sofascore for Greece. No
+new key is needed for this existing public Paf route. The Odds API remains
+limited to the previously verified NBA/EuroLeague sport keys.
+
+Explicit Greek/English club aliases cover all 14 clubs in the official 2026/27
+programme, including current ESAKE sponsor labels. Display names and saved
+history are not rewritten. Paf Greek events require Greece plus an explicit
+GBL/A1/Basket League identity (or the explicit Greek Basket League label).
+Women's, cup, lower-division and youth classifications are rejected. Home/away,
+exact kickoff, unique match, open full-game overtime markets, prices and signed
+lines remain attached to their own source event. Missing data stay missing.
+The existing Paf diagnostics download includes the actual listing labels and
+country/competition path when an event cannot be matched.
+
+`python check_greek_odds.py` passed for all 14 club identities, all seven
+programme pairings, six markets/real-schema units, no synthetic missing lines,
+Sofascore-403 fallback, two-stage Paf retrieval, cached diagnostics, duplicate
+match rejection, selected-event persistence and automatic Streamlit metrics.
+These are controlled Greek events built with an already recorded Kambi market
+schema; they are not a live Paf Greek odds capture. Existing EuroLeague alias,
+Paf real-response and basketball model/storage/UI checks also passed. The live
+Paf Greek listing/availability must still be confirmed in the hosted app; no
+network block was bypassed and no current Greek price is claimed here.
