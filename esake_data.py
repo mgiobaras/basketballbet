@@ -21,14 +21,27 @@ def plain(value):
 class Page(HTMLParser):
     def __init__(self, html):
         super().__init__(convert_charrefs=False)
-        self.options, self.blocks = {}, []
+        self.options, self.blocks, self.rounds = {}, [], set()
         self.select, self.option = None, None
         self.headings, self.heading = [], None
         self.depth, self.start, self.block = 0, None, []
         self.feed(html)
 
+    def handle_startendtag(self, tag, attrs):
+        # ESAKE emits <select ... /> followed by options and </select>.
+        # Browsers keep non-void select/option elements open despite the slash.
+        self.handle_starttag(tag, attrs)
+        if tag not in {'select', 'option'}:
+            self.handle_endtag(tag)
+
     def handle_starttag(self, tag, attrs):
         attr = dict(attrs)
+        if tag == 'button':
+            # Results builds the series options with JavaScript. Read the
+            # published navigation values; never execute page scripts.
+            series = re.search(r'''\$j\(['"]\#series['"]\)\.val\(['"](\d{1,2})['"]\)''', attr.get('onclick', ''))
+            if series and 1 <= int(series[1]) <= 40:
+                self.rounds.add(series[1])
         if tag == 'select':
             names = [attr.get(k, '').lower() for k in ['name', 'id']]
             self.select = next((n for n in names if n in {'idchampionship', 'idseason', 'series'}),
@@ -215,11 +228,11 @@ class Esake:
                     self.record_failure(action, html, error)
                     errors.append(action+': '+str(error))
             raise DataError(' | '.join(errors))
-        return self.store.cached('esake:catalogue:v2', load, 120)
+        return self.store.cached('esake:catalogue:v3', load, 120)
 
     def round_page(self, year, championship, phase, series):
         url = BASE+'EsakeResults'
-        params = dict(idchampionship=championship, idseason=phase, series=str(series), idteam='')
+        params = dict(idchampionship=championship, idseason=phase, series=f'{int(series):02d}', idteam='')
         page = Page(self.http.text(url, params))
         selected_phases = selected_values(page, 'idseason')
         if selected_phases != [phase]:
@@ -227,7 +240,8 @@ class Esake:
         games = games_from(page, year, championship, phase, url+'?'+ '&'.join(k+'='+v for k, v in params.items()))
         if any(g['round'] != int(series) for g in games):
             raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η ζητούμενη αγωνιστική.')
-        rounds = [o['value'] for o in page.options.get('series', []) if o['value'].isdigit() and 1 <= int(o['value']) <= 40]
+        rounds = sorted(page.rounds | {o['value'] for o in page.options.get('series', [])
+                        if o['value'].isdigit() and 1 <= int(o['value']) <= 40}, key=int)
         phases = [o['value'] for o in page.options.get('idseason', []) if re.fullmatch(r'[\dA-Fa-f]{8}', o['value'])]
         return games, rounds, phases
 
@@ -256,7 +270,7 @@ class Esake:
                 for games, _, _ in pool.map(lambda job: self.round_page(year, championship, *job), jobs):
                     merge(games)
             return list(values.values())
-        return self.store.cached('esake:season:v2:'+str(year), load, 600)
+        return self.store.cached('esake:season:v3:'+str(year), load, 600)
 
     def fixtures(self, league, day):
         if league != 'greece':

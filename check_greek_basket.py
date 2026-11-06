@@ -56,7 +56,11 @@ def main():
                 html.replace('id="idchampionship"', 'id="championship-picker"'),
                 html.replace('selected>', '>'),
                 html.replace('</option>', ''),
-                html.replace('2026-2027', '2026–27')]
+                html.replace('2026-2027', '2026–27'),
+                # Exact malformed select opening observed in the owner's
+                # EsakePrograms/EsakeResults HTML on 2026-11-06.
+                html.replace('<select id="idchampionship">', '<select id="idchampionship" />')
+                    .replace('<select id="idseason">', '<select id="idseason" />')]
     for variant in variants:
         assert games_from(Page(variant), 2026, '184645B9', '00000001', 'controlled') == [dict(g, source_url='controlled') for g in games]
     placeholder = html.replace('<option value="184645B9" selected>', '<option value="">Όλες οι διοργανώσεις</option><option value="184645B9">')
@@ -136,6 +140,16 @@ def main():
         http.text.return_value = variants[2].replace('</option>', '')
         assert len(defaults.fixtures('greece', date(2026, 11, 7))) == 5
         assert len(defaults.fixtures('greece', date(2026, 11, 8))) == 2
+        # Results supplies round choices through navigation buttons, while the
+        # raw select contains only the empty placeholder (captured ESAKE HTML).
+        archive_html = header(rounds=())+'''<button onclick="$j('#series').val('01');ShowProgram();">01η</button>
+            <button onclick="$j('#series').val('06');ShowProgram();">06η</button>
+            <button onclick="$j('#idteam').val('99');">Other field</button>
+            <button onclick="$j('#series').val('99');">Invalid round</button>'''
+        http.text.return_value = archive_html
+        nav = BasketballData(Store(directory+'/navigation.sqlite3'), http=http).adapters['esake']
+        _, rounds, _ = nav.round_page(2026, '184645B9', '00000001', 1)
+        assert rounds == ['01', '06'] and http.text.call_args.args[1]['series'] == '01'
         try:
             championships(Page('<h1>Unverified page</h1>'))
             raise AssertionError('Non-programme page accepted')

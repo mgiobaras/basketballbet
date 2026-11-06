@@ -1,6 +1,6 @@
 # BasketballBet
 
-Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-ESAKE-DIAG1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
+Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-GREECE3**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
 
 ## Ελληνική Basket League — 06/11/2026
 
@@ -233,4 +233,36 @@ selected-bet history are included. Captures remain in the adapter's memory;
 they are not published or written to betting history or Supabase. Each body is
 bounded to 2 million characters and explicitly marks truncation. Downloading
 allows the owner to provide the actual HTML returned to Streamlit for review.
-This diagnostic release does not claim that Greek fixture retrieval is fixed.
+The GREECE3 fix below was verified against the owner-provided responses; the diagnostic download remains available on subsequent catalogue failures.
+
+### GREECE3: verified against the actual Streamlit responses
+
+The owner supplied `esake_diagnostics.json`, captured on 2026-11-06. ESAKE's
+championship, phase and team selectors open with `<select ... />`, followed by
+normal options and `</select>`. Python HTMLParser's default start/end callback
+closed those selectors immediately, dropping their options. The parser now
+keeps non-void select/option elements open, matching browser HTML behavior.
+Season/phase/fixture identity checks remain in place.
+
+The actual EsakeResults response also publishes its 26 round choices in button
+navigation and JavaScript, while its raw series select contains only a blank
+option. The adapter reads the explicit series values from the navigation
+buttons without executing JavaScript and sends the source's two-digit round
+format. Catalogue/season cache namespaces are v3.
+
+`python check_greek_basket.py` covers malformed select openings and round
+navigation alongside the earlier source/UI checks. To replay the full owner
+capture locally, without network calls or credentials, run:
+
+```sh
+python check_esake_capture.py /path/to/esake_diagnostics.json
+```
+
+The actual capture passed: 2026/27 season and regular phase; five 07/11 and two
+08/11 fixtures with correct Athens times, home/away and official IDs; seven
+completed results with exact scores; all 26 round navigation values; rejection
+of a response from the wrong round; and both date-specific Streamlit fixture
+lists. Basketball data/model/storage/UI checks also passed. The uploaded JSON
+and full HTML are kept outside the repository. This is replay of real hosted
+responses, not a new live HTTP test from this development environment or proof
+that the live provider will never change its output.
