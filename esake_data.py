@@ -185,14 +185,26 @@ class Esake:
     source = 'esake'
     def __init__(self, store, http):
         self.store, self.http = store, http
+        self.diagnostics = {}
+
+    def record_failure(self, action, html, error):
+        # Only the public ESAKE response: no app settings, headers or bet history.
+        limit = 2_000_000
+        self.diagnostics[action] = {
+            'url': BASE+action, 'captured_at': datetime.now(timezone.utc).isoformat(),
+            'error': str(error), 'response_characters': len(html) if html is not None else None,
+            'truncated': html is not None and len(html) > limit,
+            'html': html[:limit] if html is not None else None}
 
     def catalogue(self):
         def load():
             errors = []
             for action in ['EsakePrograms', 'EsakeResults']:
                 url = BASE+action
+                html = None
                 try:
-                    page = Page(self.http.text(url))
+                    html = self.http.text(url)
+                    page = Page(html)
                     seasons, year = championships(page)
                     phases = selected_values(page, 'idseason')
                     if len(phases) != 1 or not re.fullmatch(r'[\dA-Fa-f]{8}', phases[0]):
@@ -200,6 +212,7 @@ class Esake:
                     phase = phases[0]
                     return {'seasons': seasons, 'year': year, 'games': games_from(page, year, seasons[str(year)], phase, url)}
                 except DataError as error:
+                    self.record_failure(action, html, error)
                     errors.append(action+': '+str(error))
             raise DataError(' | '.join(errors))
         return self.store.cached('esake:catalogue:v2', load, 120)

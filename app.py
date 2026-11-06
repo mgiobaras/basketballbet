@@ -17,7 +17,7 @@ from sports_ui import apply_theme, history_order, history_time
 from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_predictions
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-06-GREECE2'
+APP_VERSION = 'BASKET-2026-11-06-ESAKE-DIAG1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -207,6 +207,10 @@ with match_tab:
         with st.expander('Κατάσταση πηγών'):
             for error in dict.fromkeys(data.errors):
                 st.write(error)
+            if league == 'greece' and data.adapters['esake'].diagnostics:
+                st.download_button('Λήψη διαγνωστικών ΕΣΑΚΕ',
+                                   json.dumps(data.adapters['esake'].diagnostics, ensure_ascii=False, indent=2),
+                                   'esake_diagnostics.json', 'application/json')
             if data.paf.diagnostics:
                 st.download_button('Λήψη διαγνωστικών Paf',
                                    json.dumps(data.paf.diagnostics, ensure_ascii=False, indent=2),

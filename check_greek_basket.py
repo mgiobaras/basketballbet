@@ -143,6 +143,41 @@ def main():
             assert 'Πεδία:' in str(error) and 'Τίτλοι:' in str(error)
     print('PASS Greece: 5 Saturday/2 Sunday fixtures, Athens time, official cache, source fallback, season/identity/TBA guards and stable tournament ID')
     ui_check(html)
+    diagnostics_check()
+
+
+def diagnostics_check():
+    # Reproduce the reported structure: series only, with no season selectors
+    # or h1-h4 headings. Capture the actual response for owner review.
+    html = '<select name="series"><option value="06" selected>06η</option></select>'
+    with tempfile.TemporaryDirectory() as directory:
+        http = Mock(); http.text.return_value = html
+        http.object.side_effect = DataError('controlled HTTP 403')
+        data = BasketballData(Store(directory+'/failure.sqlite3'), http=http)
+        assert data.fixtures('greece', date(2026, 11, 7)) == []
+        captured = data.adapters['esake'].diagnostics
+        assert set(captured) == {'EsakePrograms', 'EsakeResults'}
+        assert all(v['html'] == html and not v['truncated'] and v['response_characters'] == len(html)
+                   and 'series:1' in v['error'] for v in captured.values())
+        adapter = data.adapters['esake']
+        adapter.record_failure('oversize-test', 'x'*2_000_001, DataError('controlled'))
+        assert adapter.diagnostics['oversize-test']['truncated']
+        assert len(adapter.diagnostics.pop('oversize-test')['html']) == 2_000_000
+        adapter.record_failure('offline-test', None, DataError('controlled connection failure'))
+        assert adapter.diagnostics.pop('offline-test')['html'] is None
+        with patch.dict(os.environ, {'BET_DB_PATH': directory+'/ui.sqlite3', 'SUPABASE_URL': '',
+            'SUPABASE_SERVICE_ROLE_KEY': '', 'REQUIRE_REMOTE_DB': 'false', 'APP_PASSWORD': '', 'ODDS_API_KEY': ''}), \
+             patch('basketball_data.HTTP.text', return_value=html), \
+             patch('basketball_data.HTTP.object', side_effect=DataError('controlled HTTP 403')):
+            from streamlit.testing.v1 import AppTest
+            app = AppTest.from_file(str(Path(__file__).parent/'app.py')).run(timeout=30)
+            app.sidebar.selectbox[0].select('Ελλάδα - Basket League')
+            app.sidebar.date_input[0].set_value(date(2026, 11, 7)).run(timeout=30)
+            assert not app.exception
+            buttons = [b for b in app.get('download_button') if b.label == 'Λήψη διαγνωστικών ΕΣΑΚΕ']
+            assert len(buttons) == 1
+            assert Store(directory+'/ui.sqlite3').list() == []
+    print('PASS ESAKE diagnostics: series-only failure, complete public response, no invented season/fixtures, download available without matches')
 
 
 def ui_check(html):

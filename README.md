@@ -1,6 +1,6 @@
 # BasketballBet
 
-Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-GREECE2**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
+Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-ESAKE-DIAG1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
 
 ## Ελληνική Basket League — 06/11/2026
 
@@ -217,3 +217,20 @@ remain usable. A pending snapshot is only in session memory until the database
 confirms it; closing/restarting that session before recovery can lose it. There
 is no silent temporary-disk fallback for cloud storage. Local SQLite is for local
 use and is not durable across Streamlit Cloud restarts.
+
+### ESAKE response diagnostics
+
+The hosted application reported a page containing only the `series` selector,
+with no season/championship options or h1–h4 titles. The GREECE2 parser therefore
+still rejects it correctly rather than guessing a season. The exact returned
+markup is needed before changing season/phase extraction again.
+
+On a failed official catalogue lookup, the Greek league's «Κατάσταση πηγών» now
+offers «Λήψη διαγνωστικών ΕΣΑΚΕ» (`esake_diagnostics.json`). It contains only the
+public EsakePrograms/EsakeResults response body, source URL, receipt time and
+parser error. No app settings, HTTP request/response headers, credentials or
+selected-bet history are included. Captures remain in the adapter's memory;
+they are not published or written to betting history or Supabase. Each body is
+bounded to 2 million characters and explicitly marks truncation. Downloading
+allows the owner to provide the actual HTML returned to Streamlit for review.
+This diagnostic release does not claim that Greek fixture retrieval is fixed.
