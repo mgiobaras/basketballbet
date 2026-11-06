@@ -1,6 +1,6 @@
 # BasketballBet
 
-Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-GREECE-ODDS1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
+Streamlit εφαρμογή: `app.py`, έκδοση **BASKET-2026-11-06-BROWSER-ODDS1**. Διατηρούνται NBA, EuroLeague και Ελλάδα – Basket League.
 
 ## Ελληνική Basket League — 06/11/2026
 
@@ -294,3 +294,49 @@ schema; they are not a live Paf Greek odds capture. Existing EuroLeague alias,
 Paf real-response and basketball model/storage/UI checks also passed. The live
 Paf Greek listing/availability must still be confirmed in the hosted app; no
 network block was bypassed and no current Greek price is claimed here.
+
+### Browser fallback: BROWSER-ODDS1
+
+The owner opened the exact public Paf URL in their browser and supplied a valid
+103-event JSON while Streamlit's server received HTTP410. This proves the URL
+was not globally retired. The supplied listing contained four EuroLeague games
+and no Greek events, with `soonMode=HOURLY`; it ended at 07/11 08:30 UTC, before
+the first Greek fixture. The upload is test evidence only and is never used as
+current application odds or committed to this repository.
+
+Greek requests now use the country-scoped Kambi list route
+`/listView/basketball/greece/all/all/matches.json`. Server/global and country
+list caches are distinct. If the server's Paf request reports HTTP410, a small
+native Streamlit component asks the user's browser to fetch that public listing
+and, after server-side fixture matching, the same event's detailed markets.
+This is automatic; no file import, new key, browser extension or account login
+is required. The existing Python Paf parser remains authoritative for league,
+country, exact kickoff, home/away, unique match, overtime scope, main lines and
+prices. No page script or vendor HTML is executed.
+
+The component receives only a fixed allowlisted Paf API URL, four public request
+parameters and a generated request ID. It sends no app secrets, cookies,
+authorization headers or bet history. Browser fetch uses normal CORS,
+`credentials=omit`, HTTPS and a 20-second timeout. It does not use proxies,
+alternate hosts, spoofed headers or overrides of provider/browser restrictions.
+If CORS or an HTTP error blocks it, the app reports the failure and keeps odds
+missing. Successful navigation to the JSON URL alone does not prove CORS works
+from a Streamlit iframe; that remains a live-hosted verification item.
+
+Server receipt time is assigned once when the component response arrives and is
+preserved on reruns. Browser-derived quotes carry
+`price_kind=published_pre_match_browser`. Cache and nonce scope include the
+selected fixture's identity and refresh version, and replies from an earlier
+request/fixture are ignored. Browser/server snapshots use separate cache keys.
+The Paf diagnostics download includes the browser path and its result/error.
+
+Validation: `python check_paf_browser.py` checks the staged transport and actual
+Streamlit app reruns with mocked component responses. Optional `--frontend`
+uses Chromium to execute the real HTML/JavaScript with an offline fetch stub,
+checking URL allowlisting, deduplication, errors, postMessage and omitted
+credentials. An optional owner-listing path replays all103 source events and
+confirms that no Greek prices can be extracted from that particular response.
+Existing basketball, Greek/EuroLeague alias, recorded Paf and actual ESAKE
+capture checks also pass. These checks do not claim a live Paf CORS response or
+Greek prices; the country listing's live availability must be confirmed in the
+hosted application. Selected bets/history/models/database setup are unchanged.

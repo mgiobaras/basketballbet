@@ -15,9 +15,10 @@ from basketball_store import Store, SupabaseStore, StorageError
 from personal_access import require_personal_access
 from sports_ui import apply_theme, history_order, history_time
 from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_predictions
+from paf_browser import browser_quotes
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-06-GREECE-ODDS1'
+APP_VERSION = 'BASKET-2026-11-06-BROWSER-ODDS1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -92,6 +93,14 @@ with match_tab:
         try:
             quotes, errors = data.quotes(game, st.session_state.get(refresh_key, 0))
             data.errors.extend(errors)
+            failure = data.paf.diagnostics.get('failed_request', {})
+            if 'HTTP 410' in failure.get('error', '') and len({q['market'] for q in quotes}) < 6:
+                browser_found, browser_notes, diagnostic = browser_quotes(st, store, game, st.session_state.get(refresh_key, 0))
+                quotes.extend(q for q in browser_found if not any(old['market'] == q['market'] for old in quotes))
+                data.errors.extend(browser_notes)
+                data.paf.diagnostics['browser'] = diagnostic
+                if browser_found:
+                    st.caption('Αποδόσεις Paf: αυτόματη λήψη από τον browser και έλεγχος αγώνα από την εφαρμογή.')
         except StorageError as error:
             quotes = []
             st.error(str(error))

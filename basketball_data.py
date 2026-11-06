@@ -442,8 +442,9 @@ class Paf:
     PARAMS = {'lang': 'en_GB', 'market': 'GB', 'client_id': 2, 'channel_id': 1}
     LEAGUES = {'euroleague', 'greece'}
 
-    def __init__(self, store, http):
+    def __init__(self, store, http, cache_namespace=''):
         self.store, self.http = store, http
+        self.cache_namespace = cache_namespace
         self.diagnostics = {}
 
     def quotes(self, game, refresh=0):
@@ -457,13 +458,17 @@ class Paf:
             except DataError as error:
                 self.diagnostics['failed_request'] = {'url': url, 'error': str(error)}
                 raise DataError(f'Paf: {str(error)} Αίτημα: {url}') from None
-            return {'value': value, 'receipt': datetime.now(timezone.utc).isoformat()}
-        listing = self.store.cached(f'paf:list:v1:{refresh}', lambda: fetch(
-            self.BASE+'/listView/basketball/all/all/all/matches.json'), 120)
+            receipt = getattr(self.http, 'received_at', None)
+            return {'value': value, 'receipt': receipt if isinstance(receipt, str) else datetime.now(timezone.utc).isoformat()}
+        country = 'greece' if game['league'] == 'greece' else 'all'
+        listing_url = self.BASE+f'/listView/basketball/{country}/all/all/matches.json'
+        listing = self.store.cached(f'paf:{self.cache_namespace}list:v2:{country}:{refresh}', lambda: fetch(listing_url), 120)
         rows = listing['value'].get('events')
         if not isinstance(rows, list):
             raise DataError('Paf: δεν επιστράφηκε έγκυρη λίστα αγώνων.')
         self.diagnostics['listing_count'] = len(rows)
+        self.diagnostics['listing_url'] = listing_url
+        self.diagnostics['soon_mode'] = listing['value'].get('soonMode')
         # Keep the actual provider spellings for every fixture so one diagnostic
         # can verify an entire round, including fixtures that failed matching.
         event_fields = ['id', 'homeName', 'awayName', 'englishName', 'start', 'group',
@@ -502,11 +507,11 @@ class Paf:
         self.diagnostics['matched'] = {'event': row['event'], 'betOffers': (row.get('betOffers') or [])[:50]}
         event_id = row['event']['id']
         url = self.BASE+f'/betoffer/event/{event_id}.json'
-        quotes = paf_quotes(row, game, listing['receipt'], self.BASE+'/listView/basketball/all/all/all/matches.json')
+        quotes = paf_quotes(row, game, listing['receipt'], listing_url)
         notes = []
         if len(quotes) < 6:
             try:
-                details = self.store.cached(f'paf:event:v1:{event_id}:{refresh}', lambda: fetch(url), 90)
+                details = self.store.cached(f'paf:{self.cache_namespace}event:v2:{event_id}:{refresh}', lambda: fetch(url), 90)
                 value = details['value']
                 self.diagnostics['detail_response'] = {'events': value.get('events'),
                                                       'betOffers': (value.get('betOffers') or [])[:50]}
@@ -879,7 +884,7 @@ class BasketballData:
         def snapshot():
             quotes, errors = load()
             return {'quotes': quotes, 'errors': errors, 'paf_diagnostics': self.paf.diagnostics}
-        result = self.store.cached(f'quotes:v11:{scope}:{game["key"]}:{refresh}', snapshot, 90)
+        result = self.store.cached(f'quotes:v12:{scope}:{game["key"]}:{refresh}', snapshot, 90)
         self.paf.diagnostics = result['paf_diagnostics']
         return result['quotes'], result['errors']
 

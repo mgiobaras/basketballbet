@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="el">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0;font:13px system-ui;color:#285b43;background:transparent}p{margin:4px 0}</style>
+<p id="status" role="status">Λήψη δημόσιων αποδόσεων Paf…</p>
+<script>
+"use strict";
+const send = (type, extra={}) => parent.postMessage({isStreamlitMessage:true,type,...extra}, "*");
+let lastId = null;
+let active = null;
+window.addEventListener("message", async ({data, source}) => {
+  if (source !== parent) return;
+  if (!data || data.type !== "streamlit:render") return;
+  const request = data.args && data.args.request;
+  if (!request || request.id === lastId) return;
+  lastId = request.id;
+  if (active) active.abort();
+  const controller = new AbortController(); active = controller;
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  let result;
+  try {
+    const url = new URL(request.url);
+    const base = "/offering/v2018/paf/";
+    const allowed = [base+"listView/basketball/all/all/all/matches.json",
+                     base+"listView/basketball/greece/all/all/matches.json"];
+    if (url.protocol !== "https:" || url.hostname !== "eu-offering-api.kambicdn.com" ||
+        url.port || url.username || url.password || url.search || url.hash ||
+        !(allowed.includes(url.pathname) || /^\/offering\/v2018\/paf\/betoffer\/event\/\d+\.json$/.test(url.pathname)))
+      throw new Error("Μη επιτρεπόμενη διεύθυνση πηγής.");
+    const params = request.params || {};
+    if (params.lang !== "en_GB" || params.market !== "GB" || params.client_id !== 2 ||
+        params.channel_id !== 1 || Object.keys(params).length !== 4)
+      throw new Error("Μη επιτρεπόμενες παράμετροι πηγής.");
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    const response = await fetch(url.href, {method:"GET", mode:"cors", credentials:"omit",
+      cache:"no-store", signal:controller.signal, headers:{Accept:"application/json"}});
+    if (!response.ok) throw new Error("HTTP "+response.status+" από τη δημόσια πηγή.");
+    const text = await response.text();
+    if (text.length > 4000000) throw new Error("Η απόκριση της πηγής είναι υπερβολικά μεγάλη.");
+    const body = JSON.parse(text);
+    if (!body || Array.isArray(body) || typeof body !== "object") throw new Error("Μη έγκυρο JSON πηγής.");
+    result = {id:request.id, ok:true, data:body};
+  } catch (error) {
+    const message = error.name === "AbortError" ? "Η λήψη ξεπέρασε τα 20 δευτερόλεπτα." :
+      error instanceof TypeError ? "Ο browser ή η πηγή δεν επέτρεψε τη σύνδεση (δίκτυο/CORS)." : error.message;
+    result = {id:request.id, ok:false, error:message};
+  } finally { clearTimeout(timeout); }
+  if (request.id !== lastId) return;
+  document.getElementById("status").textContent = result.ok ? "Η απόκριση παραλήφθηκε· έλεγχος αγώνα…" : result.error;
+  send("streamlit:setComponentValue", {value:result, dataType:"json"});
+});
+send("streamlit:componentReady", {apiVersion:1});
+send("streamlit:setFrameHeight", {height:36});
+</script>
+</html>
