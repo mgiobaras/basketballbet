@@ -50,7 +50,20 @@ def main():
     assert len(games) == 7 and all(g['status'] == 'NS' for g in games)
     assert games[0]['kickoff'] == '2026-11-07T13:00:00+00:00'
     assert games[5]['kickoff'] == '2026-11-08T11:00:00+00:00'
-    for h in [html.replace('Stoiximan GBL', 'Greek Cup'), html.replace('selected>', '>'), html.replace('2026-2027', '2025-2026')]:
+    # Browser-valid forms must work without depending on the form's CSS IDs,
+    # explicit selected attributes, or optional </option> closing tags.
+    variants = [html.replace('id="idchampionship"', 'id="championship-picker" name="idchampionship"'),
+                html.replace('id="idchampionship"', 'id="championship-picker"'),
+                html.replace('selected>', '>'),
+                html.replace('</option>', ''),
+                html.replace('2026-2027', '2026–27')]
+    for variant in variants:
+        assert games_from(Page(variant), 2026, '184645B9', '00000001', 'controlled') == [dict(g, source_url='controlled') for g in games]
+    placeholder = html.replace('<option value="184645B9" selected>', '<option value="">Όλες οι διοργανώσεις</option><option value="184645B9">')
+    assert championships(Page('<h1>Stoiximan GBL 2026-2027</h1>'+placeholder))[1] == 2026
+    for h in [html.replace('Stoiximan GBL', 'Greek Cup'), placeholder, html.replace('2026-2027', '2025-2026'),
+              html.replace('value="44B80BEB"', 'value="44B80BEB" selected'),
+              '<h1>Stoiximan GBL 2026-2027</h1>'+placeholder.replace('value="">Όλες', 'value="" selected>Όλες')]:
         try:
             games_from(Page(h), 2026, '184645B9', '00000001', 'controlled')
             raise AssertionError('Unverified competition/season accepted')
@@ -112,6 +125,22 @@ def main():
         other.adapters['esake'].fixtures = Mock(side_effect=DataError('controlled official outage'))
         other.adapters['sofascore'].fixtures = Mock(return_value=saturday)
         assert len(other.fixtures('greece', date(2026, 11, 7))) == 5
+        # If the programme's form is unavailable, a verified official results
+        # form supplies the catalogue; later fixture lookup still uses real rounds.
+        fallback = BasketballData(Store(directory+'/official-fallback.sqlite3'), http=http)
+        http.text.side_effect = lambda url, params=None: '<html>Programme unavailable</html>' if url.endswith('EsakePrograms') else html
+        assert len(fallback.fixtures('greece', date(2026, 11, 7))) == 5
+        # Exercise browser defaults and implicit option endings end to end.
+        defaults = BasketballData(Store(directory+'/defaults.sqlite3'), http=http)
+        http.text.side_effect = None
+        http.text.return_value = variants[2].replace('</option>', '')
+        assert len(defaults.fixtures('greece', date(2026, 11, 7))) == 5
+        assert len(defaults.fixtures('greece', date(2026, 11, 8))) == 2
+        try:
+            championships(Page('<h1>Unverified page</h1>'))
+            raise AssertionError('Non-programme page accepted')
+        except DataError as error:
+            assert 'Πεδία:' in str(error) and 'Τίτλοι:' in str(error)
     print('PASS Greece: 5 Saturday/2 Sunday fixtures, Athens time, official cache, source fallback, season/identity/TBA guards and stable tournament ID')
     ui_check(html)
 

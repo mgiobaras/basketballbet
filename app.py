@@ -17,7 +17,7 @@ from sports_ui import apply_theme, history_order, history_time
 from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_predictions
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-06-LOG1'
+APP_VERSION = 'BASKET-2026-11-06-GREECE2'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')

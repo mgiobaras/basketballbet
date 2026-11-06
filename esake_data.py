@@ -23,15 +23,21 @@ class Page(HTMLParser):
         super().__init__(convert_charrefs=False)
         self.options, self.blocks = {}, []
         self.select, self.option = None, None
+        self.headings, self.heading = [], None
         self.depth, self.start, self.block = 0, None, []
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
         attr = dict(attrs)
         if tag == 'select':
-            self.select = attr.get('id') or attr.get('name')
+            names = [attr.get(k, '').lower() for k in ['name', 'id']]
+            self.select = next((n for n in names if n in {'idchampionship', 'idseason', 'series'}),
+                               next((n for n in names if n), 'unnamed:'+str(len(self.options))))
         if tag == 'option' and self.select:
+            self.finish_option()
             self.option = dict(value=attr.get('value', ''), selected='selected' in attr, label='')
+        if tag in {'h1', 'h2', 'h3', 'h4'} and self.select is None:
+            self.heading = {'tag': tag, 'text': ''}
         if tag == 'div':
             self.depth += 1
             if 'esake-program-game' in attr.get('class', '').split():
@@ -42,11 +48,13 @@ class Page(HTMLParser):
     def handle_endtag(self, tag):
         if self.start is not None:
             self.block.append('</'+tag+'>')
-        if tag == 'option' and self.option is not None:
-            self.options.setdefault(self.select, []).append(self.option)
-            self.option = None
+        if tag in {'option', 'select'}:
+            self.finish_option()
         if tag == 'select':
             self.select = None
+        if self.heading is not None and tag == self.heading['tag']:
+            self.headings.append(plain(self.heading['text']))
+            self.heading = None
         if tag == 'div':
             if self.depth == self.start:
                 self.blocks.append(''.join(self.block))
@@ -58,6 +66,14 @@ class Page(HTMLParser):
             self.option['label'] += value
         if self.start is not None:
             self.block.append(value)
+        if self.heading is not None:
+            self.heading['text'] += value
+
+    def finish_option(self):
+        # HTML allows </option> to be omitted before the next option or </select>.
+        if self.option is not None:
+            self.options.setdefault(self.select, []).append(self.option)
+            self.option = None
 
     def handle_entityref(self, name):
         self.handle_data('&'+name+';')
@@ -66,26 +82,55 @@ class Page(HTMLParser):
         self.handle_data('&#'+name+';')
 
 
+def season_year(label):
+    label = name_key(plain(label))
+    if not re.search(r'basket\s*league|\bgbl\b', label) or re.search(r'cup|women|γυναικ', label):
+        return None
+    # name_key normalizes separators, including the season's dash, to spaces.
+    years = re.search(r'\b(20\d{2})\s+(20\d{2}|\d{2})\b', label)
+    if not years:
+        return None
+    year = int(years[1])
+    end = int(years[2]) if len(years[2]) == 4 else year//100*100+int(years[2])
+    return year if end == year+1 else None
+
+
 def championships(page):
-    values, selected = {}, None
-    for option in page.options.get('idchampionship', []):
-        label = name_key(plain(option['label']))
-        years = re.search(r'(20\d{2})\s*[-/]\s*(20\d{2}|\d{2})', plain(option['label']))
-        if (not years or not re.search(r'basket\s*league|\bgbl\b', label)
-                or re.search(r'cup|women|γυναικ', label) or not re.fullmatch(r'[\dA-Fa-f]{4,32}', option['value'])):
-            continue
-        year = int(years[1])
-        end = int(years[2]) if len(years[2]) == 4 else year//100*100+int(years[2])
-        if end != year+1:
-            continue
-        if str(year) in values and values[str(year)] != option['value']:
-            raise DataError('ΕΣΑΚΕ: αμφίβολη ταυτότητα διοργάνωσης/σεζόν.')
-        values[str(year)] = option['value']
-        if option['selected']:
-            selected = year
-    if not values or selected is None:
-        raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η επιλεγμένη σεζόν της Basket League.')
-    return values, selected
+    catalogues = []
+    for options in page.options.values():
+        values = {}
+        for option in options:
+            year = season_year(option['label'])
+            if year is None or not re.fullmatch(r'[\dA-Fa-f]{4,32}', option['value']):
+                continue
+            if str(year) in values and values[str(year)] != option['value']:
+                raise DataError('ΕΣΑΚΕ: αμφίβολη ταυτότητα διοργάνωσης/σεζόν.')
+            values[str(year)] = option['value']
+        if values:
+            catalogues.append((values, options))
+    if len(catalogues) == 1:
+        values, options = catalogues[0]
+        active = [o for o in options if o['selected']]
+        # In a single-select, no selected attribute means the first option.
+        active = active or options[:1]
+        selected = season_year(active[0]['label']) if len(active) == 1 else None
+        headings = {year for h in page.headings if (year := season_year(h)) is not None}
+        if selected is None and not any(o['selected'] for o in options) and len(headings) == 1:
+            selected = next(iter(headings))
+        if selected is not None and str(selected) in values:
+            return values, selected
+    fields = ', '.join(f'{name}:{len(opts)}' for name, opts in list(page.options.items())[:5]) or 'κανένα'
+    titles = ' / '.join(page.headings[:3])[:160] or 'κανένας'
+    selections = ' / '.join(f'{name}={plain(o["label"])[:65]} ({o["value"][:32]})'
+        for name, opts in list(page.options.items())[:5]
+        for o in ([o for o in opts if o['selected']] or opts[:1])[:2])[:350] or 'καμία'
+    raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η επιλεγμένη σεζόν της Basket League. '
+                    f'Πεδία: {fields}. Τίτλοι: {titles}. Επιλογές: {selections}.')
+
+
+def selected_values(page, field):
+    options = page.options.get(field, [])
+    return [o['value'] for o in options if o['selected']] or [o['value'] for o in options[:1]]
 
 
 def games_from(page, year, championship, phase, url):
@@ -143,21 +188,27 @@ class Esake:
 
     def catalogue(self):
         def load():
-            url = BASE+'EsakePrograms'
-            page = Page(self.http.text(url))
-            seasons, year = championships(page)
-            phases = [o['value'] for o in page.options.get('idseason', []) if o['selected']]
-            if len(phases) != 1:
-                raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η φάση της διοργάνωσης.')
-            phase = phases[0]
-            return {'seasons': seasons, 'year': year, 'games': games_from(page, year, seasons[str(year)], phase, url)}
-        return self.store.cached('esake:catalogue:v1', load, 120)
+            errors = []
+            for action in ['EsakePrograms', 'EsakeResults']:
+                url = BASE+action
+                try:
+                    page = Page(self.http.text(url))
+                    seasons, year = championships(page)
+                    phases = selected_values(page, 'idseason')
+                    if len(phases) != 1 or not re.fullmatch(r'[\dA-Fa-f]{8}', phases[0]):
+                        raise DataError('ΕΣΑΚΕ: δεν επαληθεύτηκε η φάση της διοργάνωσης.')
+                    phase = phases[0]
+                    return {'seasons': seasons, 'year': year, 'games': games_from(page, year, seasons[str(year)], phase, url)}
+                except DataError as error:
+                    errors.append(action+': '+str(error))
+            raise DataError(' | '.join(errors))
+        return self.store.cached('esake:catalogue:v2', load, 120)
 
     def round_page(self, year, championship, phase, series):
         url = BASE+'EsakeResults'
         params = dict(idchampionship=championship, idseason=phase, series=str(series), idteam='')
         page = Page(self.http.text(url, params))
-        selected_phases = [o['value'] for o in page.options.get('idseason', []) if o['selected']]
+        selected_phases = selected_values(page, 'idseason')
         if selected_phases != [phase]:
             raise DataError('ΕΣΑΚΕ: η πηγή επέστρεψε διαφορετική φάση της διοργάνωσης.')
         games = games_from(page, year, championship, phase, url+'?'+ '&'.join(k+'='+v for k, v in params.items()))
@@ -192,7 +243,7 @@ class Esake:
                 for games, _, _ in pool.map(lambda job: self.round_page(year, championship, *job), jobs):
                     merge(games)
             return list(values.values())
-        return self.store.cached('esake:season:v1:'+str(year), load, 600)
+        return self.store.cached('esake:season:v2:'+str(year), load, 600)
 
     def fixtures(self, league, day):
         if league != 'greece':
