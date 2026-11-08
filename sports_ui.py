@@ -95,12 +95,33 @@ def apply_theme(sport):
     .st-key-history_counts [data-testid="stColumn"]:nth-child(3) [data-testid="stMetric"] {
         background: #fff8e9; border-color: #ebdfbc; color: #805b13;
     }
+    .st-key-odds_grid [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important; gap: .7rem !important; align-items: stretch;
+    }
+    .st-key-odds_grid [data-testid="stColumn"] {
+        min-width: 0 !important; width: 0 !important; flex: 1 1 0 !important;
+    }
+    .st-key-odds_grid [class*="st-key-market_"] {
+        border-top: 3px solid MARKET_ACCENT; border-radius: 14px;
+        background: #fff; min-height: 132px; padding: .85rem .7rem;
+    }
+    .st-key-odds_grid [data-testid="stMetric"] {border: 0; background: transparent; padding: 0; text-align: center;}
+    .st-key-odds_grid [data-testid="stMetricLabel"] {display: flex; justify-content: center;}
+    .st-key-odds_grid [data-testid="stMetricLabel"] p {
+        white-space: normal; overflow-wrap: anywhere; font-size: clamp(.72rem, 2.6vw, .9rem);
+    }
+    .st-key-odds_grid [data-testid="stMetricValue"] {font-size: clamp(1.6rem, 5.8vw, 2.4rem);}
+    .st-key-odds_grid [data-testid="stCaptionContainer"] p {
+        font-size: .78rem; overflow-wrap: anywhere; text-align: center;
+    }
     [data-testid="stDataFrame"] {border: 1px solid #dcebe2; border-radius: 12px; overflow: hidden;}
     .stButton button, .stDownloadButton button {border-radius: 10px;}
     button[kind="primary"] {box-shadow: 0 3px 12px #16815120;}
     @media (max-width: 640px) {
         .stMainBlockContainer {padding: 1.2rem .8rem 2rem; margin-top: .25rem; border-radius: 16px;}
+        .st-key-odds_grid [data-testid="stHorizontalBlock"] {gap: .35rem !important;}
+        .st-key-odds_grid [class*="st-key-market_"] {padding: .7rem .35rem; min-height: 118px;}
         .st-key-history_counts [data-testid="stHorizontalBlock"] {gap: .35rem !important;}
         .st-key-history_counts [data-testid="stMetric"] {padding: .65rem .2rem; border-radius: 10px;}
     }
-    </style>'''.replace('var(--sports-background)', background), unsafe_allow_html=True)
+    </style>'''.replace('var(--sports-background)', background).replace('MARKET_ACCENT', accent), unsafe_allow_html=True)

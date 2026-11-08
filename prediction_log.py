@@ -11,7 +11,7 @@ SQLITE_SCHEMA = '''CREATE TABLE IF NOT EXISTS app_prediction_log (
 
 QUOTE_FIELDS = ('market', 'line', 'odds', 'source', 'bookmaker', 'bookmaker_id',
                 'provider', 'source_url', 'price_kind', 'observed_at', 'updated_at',
-                'fixture_id', 'fixture_key', 'source_fixture_id', 'scope')
+                'fixture_id', 'fixture_key', 'source_fixture_id', 'source_market_id', 'scope')
 
 
 def snapshot(sport, fixture, model, markets, absences, app_version, now=None, inputs=None):
@@ -51,3 +51,30 @@ def queue_prediction(state, packet):
     pending = state.get(key, {})
     pending[packet['id']] = packet
     state[key] = pending
+
+
+def analysis_export(st, store, sport):
+    """Owner-requested download; never render the private prediction records."""
+    key = 'analysis_export:'+sport
+    with st.expander('Πλήρης καταγραφή για ανάλυση', expanded=False):
+        st.caption('Αρχείο με όλους τους καταγεγραμμένους υπολογισμούς και το ιστορικό επιλογών.')
+        if st.button('Ετοιμασία αρχείου ανάλυσης', key='prepare_analysis:'+sport):
+            st.session_state.pop(key, None)
+            try:
+                predictions = store.list_predictions(sport)
+                bets = store.list()
+                if not isinstance(predictions, list) or not isinstance(bets, list):
+                    raise ValueError('Δεν επιβεβαιώθηκε η ανάγνωση της πλήρους καταγραφής.')
+                known = {p['id'] for p in predictions}
+                pending = [p for p in st.session_state.get('pending_prediction_log:'+sport, {}).values()
+                           if p['id'] not in known]
+                packet = dict(schema_version=1, sport=sport, exported_at=datetime.now(timezone.utc).isoformat(),
+                              selected_bets=bets, prediction_log=predictions, pending_prediction_log=pending)
+                st.session_state[key] = json.dumps(packet, ensure_ascii=False, allow_nan=False, indent=2)
+                if not predictions:
+                    st.info('Δεν βρέθηκαν αποθηκευμένοι υπολογισμοί στην καταγραφή της βάσης.')
+            except (RuntimeError, ValueError, OSError, sqlite3.Error) as error:
+                st.error('Δεν ετοιμάστηκε το αρχείο ανάλυσης: '+str(error))
+        if key in st.session_state:
+            st.download_button('Λήψη πλήρους αρχείου ανάλυσης JSON', st.session_state[key],
+                               sport+'_analysis_backup.json', 'application/json', key='download_analysis:'+sport)

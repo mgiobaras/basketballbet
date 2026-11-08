@@ -120,8 +120,8 @@ def ui_check(game,row):
         assert not app.exception
         assert any(m.label == 'Over 237' and m.value == '1.90' for m in app.metric)
         assert any(m.label == 'Under 237' and m.value == '1.92' for m in app.metric)
-        assert any(m.label == 'Handicap '+game['teams']['home']['name']+' -4' and m.value == '1.90' for m in app.metric)
-        assert any(m.label == 'Νίκη '+game['teams']['away']['name'] and m.value == '2.38' for m in app.metric)
+        assert any(m.label == 'Handicap 1 -4' and m.value == '1.90' for m in app.metric)
+        assert any(m.label == '2' and m.value == '2.38' for m in app.metric)
         assert Store(directory+'/ui.sqlite3').list() == []
 
 

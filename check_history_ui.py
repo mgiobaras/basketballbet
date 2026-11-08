@@ -33,6 +33,7 @@ def main():
         app = AppTest.from_file(str(Path(__file__).parent/'app.py')).run(timeout=30)
         assert not app.exception
         table = app.dataframe[0].value
+        assert not any('Απουσίες' in c for c in table.columns)
         assert list(table['Αγώνας']) == ['Higher — Team 2', 'Lower — Team 2', 'Unknown — Team 2', 'Later — Team 2']
         assert table.iloc[0]['Ημερομηνία'] == '01/01/2030 14:00'
         metrics = {m.label: m.value for m in app.metric}

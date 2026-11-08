@@ -14,11 +14,11 @@ from basketball_pace import analyse_pace, boxscores
 from basketball_store import Store, SupabaseStore, StorageError
 from personal_access import require_personal_access
 from sports_ui import apply_theme, history_order, history_time
-from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_predictions
+from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_predictions, analysis_export
 from paf_browser import browser_quotes
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-06-EURO-NAMES1'
+APP_VERSION = 'BASKET-2026-11-08-CARDS1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -69,7 +69,7 @@ with match_tab:
     league_name = st.sidebar.selectbox('Διοργάνωση', list(LEAGUES))
     league = LEAGUES[league_name]
     day = st.sidebar.date_input('Ημερομηνία αγώνα', datetime.now(ZoneInfo('Europe/Athens')).date())
-    st.info('Αυτόματη αναζήτηση σε επόμενη διαθέσιμη πηγή όταν λείπουν στοιχεία. Δεν επιλέγεις πηγή. Οι απουσίες παραμένουν χειροκίνητες.')
+    st.info('Αυτόματη αναζήτηση σε επόμενη διαθέσιμη πηγή όταν λείπουν στοιχεία. Δεν επιλέγεις πηγή.')
     try:
         games = data.fixtures(league, day)
     except StorageError as error:
@@ -110,39 +110,40 @@ with match_tab:
         manual = st.checkbox('Χειροκίνητη καταχώριση / διόρθωση', key='manual:'+game['key'])
         company = st.text_input('Εταιρεία χειροκίνητων αποδόσεων', max_chars=100, key='company:'+game['key']).strip() if manual else ''
         offers = {}
-        columns = st.columns(3)
-        for index, (market, label) in enumerate(game_labels.items()):
-            with columns[index % 3]:
-                q = by_market.get(market)
-                if manual:
-                    st.write(label)
-                    line = st.number_input('Line '+label, value=None, step=.5, key=f'line:{game["key"]}:{market}') if market not in {'home', 'away'} else None
-                    price = st.number_input('Απόδοση '+label, min_value=1.01, value=None, step=.01, key=f'price:{game["key"]}:{market}')
-                    if price is not None and (market in {'home', 'away'} or line is not None):
-                        offers[market] = {'fixture_key': game['key'], 'market': market, 'line': line, 'odds': price,
-                                          'source': 'Χειροκίνητη καταχώριση', 'bookmaker': company, 'price_kind': 'manual',
-                                          'scope': 'including_overtime', 'observed_at': datetime.now(timezone.utc).isoformat()}
-                else:
-                    line_label = '' if not q or q['line'] is None else f" {q['line']:+g}" if market.startswith('handicap') else f" {q['line']:g}"
-                    st.metric(label+line_label, f"{q['odds']:.2f}" if q else '—')
-                    if q:
-                        offers[market] = q
-                        company_label = q.get('bookmaker') or f"πάροχος ID {q.get('bookmaker_id')} (δεν δηλώθηκε εταιρεία)"
-                        st.caption(f"{q['source']} / {company_label} · {q['price_kind']} · λήψη {q['observed_at']}")
+        card_labels = {'home': '1', 'away': '2', 'handicap_home': 'Handicap 1',
+                       'handicap_away': 'Handicap 2', 'over': 'Over', 'under': 'Under'}
+        with st.container(key='odds_grid'):
+            for row in [('home', 'away'), ('handicap_home', 'handicap_away'), ('over', 'under')]:
+                for column, market in zip(st.columns(2), row):
+                    with column, st.container(border=True, key='market_'+market):
+                        q, label = by_market.get(market), game_labels[market]
+                        if manual:
+                            st.write(card_labels[market])
+                            line = st.number_input('Line '+label, value=None, step=.5, key=f'line:{game["key"]}:{market}') if market not in {'home', 'away'} else None
+                            price = st.number_input('Απόδοση '+label, min_value=1.01, value=None, step=.01, key=f'price:{game["key"]}:{market}')
+                            if price is not None and (market in {'home', 'away'} or line is not None):
+                                offers[market] = {'fixture_key': game['key'], 'market': market, 'line': line, 'odds': price,
+                                                  'source': 'Χειροκίνητη καταχώριση', 'bookmaker': company, 'price_kind': 'manual',
+                                                  'scope': 'including_overtime', 'observed_at': datetime.now(timezone.utc).isoformat()}
+                        else:
+                            line_label = '' if not q or q['line'] is None else f" {q['line']:+g}" if market.startswith('handicap') else f" {q['line']:g}"
+                            st.metric(card_labels[market]+line_label, f"{q['odds']:.2f}" if q else '—',
+                                      help=f"{q['source']} / {q.get('bookmaker') or q.get('bookmaker_id')}" if q else None)
+                            if q:
+                                offers[market] = q
+                        if market in {'home', 'away', 'handicap_home', 'handicap_away'}:
+                            side = 'home' if market in {'home', 'handicap_home'} else 'away'
+                            st.caption(game['teams'][side]['name'])
+        if not manual and offers:
+            with st.expander('Πηγές αποδόσεων'):
+                for market, q in offers.items():
+                    company_label = q.get('bookmaker') or f"πάροχος ID {q.get('bookmaker_id')} (δεν δηλώθηκε εταιρεία)"
+                    st.caption(f"{game_labels[market]} · {q['source']} / {company_label} · {q['price_kind']} · λήψη {q['observed_at']}")
         if not offers:
             st.info('Δεν βρέθηκαν επιβεβαιωμένες τιμές με τις αντίστοιχες γραμμές. Τα κενά δεν αντικαθίστανται με 1,90 ή υποθετικά lines.')
             if league in {'euroleague', 'nba'} and not setting('ODDS_API_KEY'):
                 st.info('Εναλλακτική αυτόματη πηγή: ενεργοποίησε το The Odds API προσθέτοντας ODDS_API_KEY στα Secrets του Streamlit. Διαθέτει δωρεάν πρόγραμμα με όριο χρήσης.')
-        st.subheader('Χειροκίνητες απουσίες')
         absences = {}
-        for column, side in zip(st.columns(2), ['home', 'away']):
-            with column:
-                st.write(game['teams'][side]['name'])
-                starters = st.number_input('Βασικοί που λείπουν', min_value=0, value=None, step=1, key=f'abs:starters:{game["key"]}:{side}')
-                reserves = st.number_input('Αναπληρωματικοί που λείπουν', min_value=0, value=None, step=1, key=f'abs:reserves:{game["key"]}:{side}')
-                score = None if starters is None or reserves is None else -starters-.5*reserves
-                absences[side] = {'starters': starters, 'reserves': reserves, 'index': score}
-        st.caption('Δείκτης: βασικός −1, αναπληρωματικός −0,5. Αποθηκεύεται χωρίς αυθαίρετη αλλαγή πιθανοτήτων. Κενή καταχώριση σημαίνει άγνωστο.')
         model_options = ['Κλασικό — έως 10 πρόσφατοι αγώνες', 'Ρυθμός & αποτελεσματικότητα — πειραματικό']
         if st.session_state.get('model_mode') not in model_options:
             st.session_state.pop('model_mode', None)
@@ -287,8 +288,7 @@ with history_tab:
                         'Απόδοση': r['odds'], 'Μονάδες': r['stake'],
                         'Κατάσταση': {'won': 'Κερδισμένο', 'lost': 'Χαμένο', 'pending': 'Εκκρεμεί', 'push': 'Επιστροφή'}.get(r['status'], r['status']),
                         'Σκορ με παράταση': r['score'],
-                        'Κέρδος': r['profit'], 'Πηγή': r['quote']['source'], 'Εταιρεία': r['quote'].get('bookmaker'),
-                        'Απουσίες': json.dumps(r['absences'], ensure_ascii=False)} for r in records]
+                        'Κέρδος': r['profit'], 'Πηγή': r['quote']['source'], 'Εταιρεία': r['quote'].get('bookmaker')} for r in records]
             st.dataframe(display, hide_index=True, width='stretch', column_config={
                 'Αρχική πιθανότητα μοντέλου': st.column_config.TextColumn('Ποσοστό', help='Η αρχική πιθανότητα που αποθηκεύτηκε με την επιλογή.'),
                 'Ημερομηνία': st.column_config.TextColumn('Έναρξη (Ελλάδα)')})
@@ -299,6 +299,7 @@ with history_tab:
             st.download_button('Εξαγωγή CSV', buffer.getvalue().encode('utf-8-sig'), 'basketball_bets.csv', 'text/csv')
         else:
             st.write('Δεν υπάρχουν αποθηκευμένες επιλογές για: '+selected_league)
+        analysis_export(st, store, 'basketball')
     except (StorageError, DataError, ValueError) as error:
         st.error(str(error))
     st.caption('Εκκαθάριση μόνο σε επιβεβαιωμένο τελικό σκορ μαζί με παράταση. Ισοπαλία στην ακέραια γραμμή σημαίνει επιστροφή. Άγνωστα αποτελέσματα παραμένουν εκκρεμή. Η ενημέρωση δεν εκτελείται όταν η εφαρμογή είναι κλειστή.')
