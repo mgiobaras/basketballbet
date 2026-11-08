@@ -125,6 +125,11 @@ def ui_check():
     from streamlit.testing.v1 import AppTest
     now = datetime.now(timezone.utc)
     f = fixture(kickoff=now+timedelta(days=2)); games, boxes = controlled(f)
+    # The UI now needs measurable score variation; constant artificial histories
+    # cannot support a probability distribution. Keep the rounded means intact.
+    for index,side,delta in [(0,'home',1),(2,'home',-1),(1,'away',1),(3,'away',-1)]:
+        games[index]['score'][side] += delta
+        boxes[games[index]['key']]['score'] = dict(games[index]['score'])
     with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'BET_DB_PATH': directory+'/bets.sqlite3', 'SUPABASE_URL': '', 'SUPABASE_SERVICE_ROLE_KEY': '', 'REQUIRE_REMOTE_DB': 'false', 'APP_PASSWORD': ''}), \
          patch('basketball_data.BasketballData.fixtures', return_value=[f]), \
          patch('basketball_data.BasketballData.history', return_value=games), \
@@ -140,7 +145,8 @@ def ui_check():
         app.multiselect[0].select('over').run()
         next(b for b in app.button if b.label == 'Αποθήκευση επιλογών').click().run()
         record = Store(directory+'/bets.sqlite3').list()[0]
-        assert record['model']['model_version'] == 'basket-up-to10-possessions-v2'
+        assert record['model']['model_version'] == 'basket-up-to10-possessions-v2-uncertainty1'
+        assert record['model']['base_model_version'] == 'basket-up-to10-possessions-v2'
         assert len(record['model']['boxscore_inputs']) == 20 and record['odds'] == 1.9
         next(s for s in app.selectbox if s.label == 'Μοντέλο υπολογισμού').select_index(0).run()
         assert not app.exception and not any(m.label == 'Αναμενόμενοι πόντοι μοντέλου' for m in app.metric)

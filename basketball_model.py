@@ -75,7 +75,10 @@ def cdf(value, mean, variance):
 def distribution(model, market, line=None):
     if market not in MARKETS:
         raise ValueError('Άγνωστη αγορά.')
-    variance = model['variance']
+    family = 'total' if market in {'over', 'under'} else 'margin'
+    variance = model.get('variance_'+family, model['variance'])
+    if variance is None:
+        return None
     if market in {'home', 'away'}:
         mean = model['mu_home']-model['mu_away']
         h = 1-cdf(.5, mean, variance)
@@ -85,6 +88,8 @@ def distribution(model, market, line=None):
         p = (h if market == 'home' else a)/(h+a)
         return {'win': p, 'push': 0., 'loss': 1-p}
     if number(line) is None:
+        return None
+    if not float(line*2).is_integer() or (market in {'over', 'under'} and line <= 0):
         return None
     total = market in {'over', 'under'}
     mean = model['mu_home']+model['mu_away'] if total else model['mu_home']-model['mu_away']

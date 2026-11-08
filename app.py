@@ -14,11 +14,13 @@ from basketball_pace import analyse_pace, boxscores
 from basketball_store import Store, SupabaseStore, StorageError
 from personal_access import require_personal_access
 from sports_ui import apply_theme, history_order, history_time
-from prediction_log import snapshot, quote_snapshot, queue_prediction, flush_predictions, analysis_export
+from prediction_log import snapshot, quote_snapshot, flush_predictions, analysis_export, log_forecast
 from paf_browser import browser_quotes
+from basketball_adjustment import adjust_model
+from recommendations import apply_policy, show_recommendation
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-08-CARDS1'
+APP_VERSION = 'BASKET-2026-11-08-RECOMMEND1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -151,7 +153,7 @@ with match_tab:
         pace_mode = model_mode.startswith('Ρυθμός')
         if pace_mode:
             st.caption('Εκτιμώμενες κατοχές και επίθεση/άμυνα ανά 100 κατοχές από αναλυτικά στατιστικά. Απαιτεί πλήρη στοιχεία για όλους τους διαθέσιμους έως 10 πιο πρόσφατους αγώνες κάθε ομάδας σε NBA/Ευρωλίγκα. Δεν έχει επιβεβαιωθεί βελτίωση ακρίβειας.')
-        model_key = 'analysis:'+game['key']+(':pace-v2' if pace_mode else ':classic-v2')
+        model_key = 'analysis:'+game['key']+(':pace-adjust1' if pace_mode else ':classic-adjust1')
         if st.button('Υπολογισμός με πραγματικά δεδομένα', type='primary'):
             st.session_state.pop(model_key, None)
             try:
@@ -161,18 +163,10 @@ with match_tab:
                     if model and pace_mode:
                         model = analyse_pace(game, history, boxscores(data, game, history))
                 if model:
+                    model = adjust_model(game, history, model)
+                    model['calculated_at'] = datetime.now(timezone.utc).isoformat()
                     st.session_state[model_key] = model
-                    markets = {}
-                    for market in MARKETS:
-                        offer = offers.get(market)
-                        line = offer.get('line') if offer else None
-                        markets[market] = {'line': line, 'probability': distribution(model, market, line),
-                                           'quote': quote_snapshot(offer)}
-                    queue_prediction(st.session_state, snapshot('basketball', game, model, markets, absences, APP_VERSION,
-                        inputs={side: recent_games(history, game, side) for side in ['home', 'away']}))
-                    warning = flush_predictions(store, st.session_state, 'basketball')
-                    if warning and not log_warning:
-                        st.warning(warning)
+                    st.session_state[model_key+':inputs'] = {side: recent_games(history, game, side) for side in ['home', 'away']}
                 else:
                     counts = {game['teams'][s]['name']: len(recent_games(history, game, s)) for s in ['home', 'away']}
                     if pace_mode and game['league'] not in {'nba', 'euroleague'}:
@@ -185,6 +179,20 @@ with match_tab:
                 st.error(str(error))
         model = st.session_state.get(model_key)
         if model:
+            raw_model = {k: v for k, v in model.items() if k not in {'variance_total', 'variance_margin'}}
+            markets = {}
+            for market in MARKETS:
+                offer = offers.get(market)
+                line = offer.get('line') if offer else None
+                markets[market] = {'line': line, 'probability': distribution(model, market, line),
+                                   'raw_probability': distribution(raw_model, market, line),
+                                   'quote': quote_snapshot(offer)}
+            policy = apply_policy('basketball', game, markets)
+            model = dict(model, recommendation_policy=policy)
+            warning = log_forecast(store, st.session_state, snapshot('basketball', game, model, markets, absences, APP_VERSION,
+                inputs=st.session_state.get(model_key+':inputs')), model_key)
+            if warning and not log_warning:
+                st.warning(warning)
             counts = model['history_counts']
             st.caption('Ιστορικό που χρησιμοποιήθηκε: '+' · '.join(
                 f"{game['teams'][side]['name']}: {counts[side]}/10 αγώνες" for side in ['home', 'away']))
@@ -192,7 +200,7 @@ with match_tab:
                 st.warning('Μικρότερο δείγμα: χρησιμοποιούνται οι διαθέσιμοι αγώνες, με όριο τους 10 πιο πρόσφατους ανά ομάδα.')
             st.metric('Αναμενόμενοι πόντοι μοντέλου', f"{model['mu_home']:.1f} — {model['mu_away']:.1f}")
             if pace_mode:
-                st.caption('Πειραματική Normal προσέγγιση με προσαρμογή αναμενόμενων πόντων στις εκτιμώμενες κατοχές και την αποτελεσματικότητα. Βάρη ημιζωής 90 ημερών. Η διακύμανση παραμένει αυτή του κλασικού μοντέλου και δεν έχει βαθμονομηθεί για αυτή την προσαρμογή.')
+                st.caption('Πειραματική Normal προσέγγιση με προσαρμογή αναμενόμενων πόντων στις εκτιμώμενες κατοχές και την αποτελεσματικότητα. Βάρη ημιζωής 90 ημερών. Η αβεβαιότητα συνόλου και διαφοράς εκτιμάται χωριστά από τους ίδιους πρόσφατους αγώνες.')
                 st.dataframe([{'Ομάδα': game['teams'][side]['name'],
                                f'Κατοχές / {model["regulation_minutes"]} λεπτά': round(profile['pace'], 1),
                                'Πόντοι υπέρ / 100 κατοχές': round(profile['offensive_rating'], 1),
@@ -201,18 +209,24 @@ with match_tab:
                 st.caption('Οι κατοχές εκτιμώνται από σουτ, επιθετικά ριμπάουντ, λάθη και βολές. Ο ρυθμός προσαρμόζεται στη διάρκεια· οι αναμενόμενοι πόντοι περιλαμβάνουν την ιστορική συμμετοχή παρατάσεων. Πηγές αναλυτικών στατιστικών: '+', '.join(sorted({b['source'] for b in model['boxscore_inputs'].values()})))
             else:
                 st.caption('Πειραματική Normal προσέγγιση από πραγματικούς πόντους υπέρ/κατά, βάρη παλαιότητας90 ημερών. Χωρίς σταθερό πλεονέκτημα έδρας, συντελεστές ξεκούρασης ή επινοημένους μέσους όρους.')
+            st.caption('Χωριστή προσαρμογή συνόλου πόντων και διαφοράς για τη συγκεκριμένη διοργάνωση, με την αβεβαιότητα του διαθέσιμου δείγματος. Οι προηγούμενοι αγώνες και οι αναμενόμενοι πόντοι παραμένουν ίδιοι.')
             st.caption('Πηγές ιστορικού: '+', '.join(model['input_sources']))
+            show_recommendation(st, policy, game_labels)
+            st.subheader('Όλοι οι υπολογισμοί')
             rows, distributions = [], {}
             for market, q in offers.items():
-                p = distribution(model, market, q['line'])
+                p = markets[market]['probability']
                 if p is None:
                     continue
                 distributions[market] = p
                 ev = p['win']*(q['odds']-1)-p['loss']
                 rows.append({'Αγορά': game_labels[market], 'Line': q['line'], 'Απόδοση': q['odds'],
+                             'Αρχική πιθανότητα': f"{markets[market]['raw_probability']['win']:.1%}" if markets[market]['raw_probability'] else '—',
                              'Πιθανότητα νίκης': f"{p['win']:.1%}", 'Επιστροφή': f"{p['push']:.1%}", 'Εκτιμώμενο EV': f'{ev:+.1%}'})
             if rows:
                 st.dataframe(rows, hide_index=True)
+            else:
+                st.info('Δεν υπάρχει ακόμη εκτιμήσιμη αβεβαιότητα ή έγκυρη γραμμή για αυτές τις αγορές. Τα διαθέσιμα ιστορικά σκορ δεν συμπληρώνονται με υποθετικές τιμές.')
             eligible = [m for m in distributions if offers[m]['odds'] >= 1.5]
             chosen = st.multiselect('Επιλογές για αποθήκευση — 1 μονάδα η καθεμία', eligible, format_func=lambda m: game_labels[m], key='choices:'+game['key'])
             can_save = game['status'] == 'NS' and instant(game['kickoff']) > datetime.now(timezone.utc) and (not manual or bool(company))

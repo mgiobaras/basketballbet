@@ -1,5 +1,6 @@
 """Private analysis snapshots, independent of the user's selected bets."""
 from datetime import datetime, timezone
+import hashlib
 import json
 import sqlite3
 from uuid import uuid4
@@ -53,6 +54,22 @@ def queue_prediction(state, packet):
     state[key] = pending
 
 
+def log_forecast(store, state, packet, calculation_key):
+    """Log each calculation or changed price/decision, not ordinary UI reruns."""
+    comparable = json.loads(json.dumps(packet['payload'], ensure_ascii=False, allow_nan=False))
+    for value in comparable['markets'].values():
+        quote = value.get('quote')
+        if quote:
+            for key in ['observed_at', 'updated_at']:
+                quote.pop(key, None)
+    digest = hashlib.sha256(json.dumps(comparable, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    key = 'forecast_digest:'+packet['sport']+':'+calculation_key
+    if state.get(key) != digest:
+        queue_prediction(state, packet)
+        state[key] = digest
+    return flush_predictions(store, state, packet['sport'])
+
+
 def analysis_export(st, store, sport):
     """Owner-requested download; never render the private prediction records."""
     key = 'analysis_export:'+sport
@@ -68,8 +85,11 @@ def analysis_export(st, store, sport):
                 known = {p['id'] for p in predictions}
                 pending = [p for p in st.session_state.get('pending_prediction_log:'+sport, {}).values()
                            if p['id'] not in known]
-                packet = dict(schema_version=1, sport=sport, exported_at=datetime.now(timezone.utc).isoformat(),
-                              selected_bets=bets, prediction_log=predictions, pending_prediction_log=pending)
+                from recommendations import first_recommendations
+                packet = dict(schema_version=2, sport=sport, exported_at=datetime.now(timezone.utc).isoformat(),
+                              selected_bets=bets, prediction_log=predictions, pending_prediction_log=pending,
+                              model_recommendations=first_recommendations(predictions+pending),
+                              recommendation_selection_rule='first eligible recommendation per sport, fixture and policy version')
                 st.session_state[key] = json.dumps(packet, ensure_ascii=False, allow_nan=False, indent=2)
                 if not predictions:
                     st.info('Δεν βρέθηκαν αποθηκευμένοι υπολογισμοί στην καταγραφή της βάσης.')
