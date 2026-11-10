@@ -1,5 +1,10 @@
 # BasketballBet
 
+## NBA1 — 2025–2026 experiment
+
+New optional opponent/home-adjusted NBA candidate with empirical residual calibration. It failed the historical recommendation gate and remains experimental, with classic still the default. Selecting the candidate records both variants on identical prices and input games. NBA primary tips are disabled unless a model passes the historical gate; calculations and manual choices remain available. No owner history is rewritten. See [historical results and reproduction](reports/NBA_2025_26_RESULTS.md).
+
+
 ## RECOMMEND1 — διαχωρισμός υπολογισμών και προτάσεων (08/11/2026)
 
 Υπάρχουν πλέον χωριστές ενότητες **Προτάσεις μοντέλου — υπό αξιολόγηση** και **Όλοι οι υπολογισμοί**. Παραμένει δυνατή η αποθήκευση άλλης διαθέσιμης αγοράς ως προσωπική επιλογή.

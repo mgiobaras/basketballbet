@@ -79,10 +79,18 @@ def distribution(model, market, line=None):
     variance = model.get('variance_'+family, model['variance'])
     if variance is None:
         return None
+    residuals = model.get('residuals_'+family)
+    def predicted_cdf(value,mean):
+        if residuals:
+            samples=np.array(residuals)
+            if market=='handicap_away':samples=-samples
+            samples=np.sort(samples)
+            return float(np.interp(value-mean,samples,np.arange(1,len(samples)+1)/(len(samples)+1),left=1/(len(samples)+1),right=len(samples)/(len(samples)+1)))
+        return cdf(value,mean,variance)
     if market in {'home', 'away'}:
         mean = model['mu_home']-model['mu_away']
-        h = 1-cdf(.5, mean, variance)
-        a = cdf(-.5, mean, variance)
+        h = 1-predicted_cdf(.5, mean)
+        a = predicted_cdf(-.5, mean)
         if h+a == 0:
             return None
         p = (h if market == 'home' else a)/(h+a)
@@ -99,7 +107,7 @@ def distribution(model, market, line=None):
     # Integer-score continuity correction; integer lines have a refund probability.
     low = floor(threshold) + .5 if not float(threshold).is_integer() else threshold-.5
     high = low if not float(threshold).is_integer() else threshold+.5
-    below, above = cdf(low, mean, variance), 1-cdf(high, mean, variance)
+    below, above = predicted_cdf(low, mean), 1-predicted_cdf(high, mean)
     push = max(0., 1-below-above)
     win = below if market == 'under' else above
     return {'win': win, 'push': push, 'loss': max(0., 1-win-push)}

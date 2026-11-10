@@ -7,3 +7,5 @@ basketball_predictions_history.csv
 .env
 .env.*
 !.env.example
+
+data/nba_research/

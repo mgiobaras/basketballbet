@@ -18,9 +18,10 @@ from prediction_log import snapshot, quote_snapshot, flush_predictions, analysis
 from paf_browser import browser_quotes
 from basketball_adjustment import adjust_model
 from recommendations import apply_policy, show_recommendation
+from nba_model import predict as nba_predict, league_history as nba_league_history
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-08-RECOMMEND1'
+APP_VERSION = 'BASKET-2026-11-10-NBA1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -146,14 +147,15 @@ with match_tab:
             if league in {'euroleague', 'nba'} and not setting('ODDS_API_KEY'):
                 st.info('Εναλλακτική αυτόματη πηγή: ενεργοποίησε το The Odds API προσθέτοντας ODDS_API_KEY στα Secrets του Streamlit. Διαθέτει δωρεάν πρόγραμμα με όριο χρήσης.')
         absences = {}
-        model_options = ['Κλασικό — έως 10 πρόσφατοι αγώνες', 'Ρυθμός & αποτελεσματικότητα — πειραματικό']
+        model_options = ['Κλασικό — έως 10 πρόσφατοι αγώνες', 'Ρυθμός & αποτελεσματικότητα — πειραματικό', 'NBA — αντίπαλοι και βαθμονόμηση (παράλληλη δοκιμή)']
         if st.session_state.get('model_mode') not in model_options:
             st.session_state.pop('model_mode', None)
         model_mode = st.selectbox('Μοντέλο υπολογισμού', model_options, key='model_mode')
         pace_mode = model_mode.startswith('Ρυθμός')
+        nba_mode = model_mode.startswith('NBA')
         if pace_mode:
             st.caption('Εκτιμώμενες κατοχές και επίθεση/άμυνα ανά 100 κατοχές από αναλυτικά στατιστικά. Απαιτεί πλήρη στοιχεία για όλους τους διαθέσιμους έως 10 πιο πρόσφατους αγώνες κάθε ομάδας σε NBA/Ευρωλίγκα. Δεν έχει επιβεβαιωθεί βελτίωση ακρίβειας.')
-        model_key = 'analysis:'+game['key']+(':pace-adjust1' if pace_mode else ':classic-adjust1')
+        model_key = 'analysis:'+game['key']+(':nba1' if nba_mode else ':pace-adjust1' if pace_mode else ':classic-adjust1')
         if st.button('Υπολογισμός με πραγματικά δεδομένα', type='primary'):
             st.session_state.pop(model_key, None)
             try:
@@ -162,14 +164,22 @@ with match_tab:
                     model = analyse(game, history)
                     if model and pace_mode:
                         model = analyse_pace(game, history, boxscores(data, game, history))
+                    if nba_mode:
+                        if league=='nba':
+                            history=nba_league_history(data,game)
+                            st.session_state[model_key+':baseline']=adjust_model(game,history,analyse(game,history))
+                            model=nba_predict(game,history)
+                        else:model=None
                 if model:
-                    model = adjust_model(game, history, model)
+                    if not nba_mode:model = adjust_model(game, history, model)
                     model['calculated_at'] = datetime.now(timezone.utc).isoformat()
                     st.session_state[model_key] = model
                     st.session_state[model_key+':inputs'] = {side: recent_games(history, game, side) for side in ['home', 'away']}
                 else:
                     counts = {game['teams'][s]['name']: len(recent_games(history, game, s)) for s in ['home', 'away']}
-                    if pace_mode and game['league'] not in {'nba', 'euroleague'}:
+                    if nba_mode:
+                        st.warning('Η νέα δοκιμαστική εκδοχή απαιτεί NBA και πλήρες διαθέσιμο ιστορικό δέκα αγώνων ανά ομάδα. Οι άλλες εκδοχές παραμένουν διαθέσιμες.')
+                    elif pace_mode and game['league'] not in {'nba', 'euroleague'}:
                         st.warning('Το μοντέλο ρυθμού υποστηρίζει NBA/Ευρωλίγκα. Για την Ελλάδα επίλεξε το κλασικό μοντέλο.')
                     elif pace_mode and all(n > 0 for n in counts.values()):
                         st.warning('Δεν υπάρχουν επαληθευμένα αναλυτικά στατιστικά για όλους τους επιλεγμένους πρόσφατους αγώνες. Δες την «Κατάσταση πηγών» ή επίλεξε το κλασικό μοντέλο.')
@@ -179,7 +189,7 @@ with match_tab:
                 st.error(str(error))
         model = st.session_state.get(model_key)
         if model:
-            raw_model = {k: v for k, v in model.items() if k not in {'variance_total', 'variance_margin'}}
+            raw_model = st.session_state[model_key+':baseline'] if nba_mode else {k: v for k, v in model.items() if k not in {'variance_total', 'variance_margin'}}
             markets = {}
             for market in MARKETS:
                 offer = offers.get(market)
@@ -188,17 +198,36 @@ with match_tab:
                                    'raw_probability': distribution(raw_model, market, line),
                                    'quote': quote_snapshot(offer)}
             policy = apply_policy('basketball', game, markets)
+            if league=='nba':
+                policy['policy_version']='nba-evaluation-2026-11-10-v1'
+                for value in markets.values():value['recommendation']['policy_version']=policy['policy_version']
+            if league=='nba' and not model.get('validated_for_recommendations',False):
+                policy['recommended_market']=None
+                policy['validation_status']='NBA historical recommendation gate not passed'
+                for market,decision in policy['decisions'].items():
+                    decision.update(recommended=False,reason='nba_not_validated')
+                    markets[market]['recommendation'].update(recommended=False,reason='nba_not_validated')
             model = dict(model, recommendation_policy=policy)
             warning = log_forecast(store, st.session_state, snapshot('basketball', game, model, markets, absences, APP_VERSION,
                 inputs=st.session_state.get(model_key+':inputs')), model_key)
             if warning and not log_warning:
                 st.warning(warning)
+            if nba_mode and st.session_state.get(model_key+':baseline'):
+                baseline=dict(st.session_state[model_key+':baseline'],calculated_at=model['calculated_at'])
+                baseline_markets={m:{'line':v['line'],'probability':distribution(baseline,m,v['line']),
+                                  'quote':v['quote']} for m,v in markets.items()}
+                baseline['comparison_role']='original_model_same_quotes'
+                baseline_warning=log_forecast(store,st.session_state,snapshot('basketball',game,baseline,
+                    baseline_markets,absences,APP_VERSION,inputs=st.session_state.get(model_key+':inputs')),model_key+':baseline')
+                if baseline_warning and not warning:st.warning(baseline_warning)
             counts = model['history_counts']
             st.caption('Ιστορικό που χρησιμοποιήθηκε: '+' · '.join(
                 f"{game['teams'][side]['name']}: {counts[side]}/10 αγώνες" for side in ['home', 'away']))
             if min(counts.values()) < 10:
                 st.warning('Μικρότερο δείγμα: χρησιμοποιούνται οι διαθέσιμοι αγώνες, με όριο τους 10 πιο πρόσφατους ανά ομάδα.')
             st.metric('Αναμενόμενοι πόντοι μοντέλου', f"{model['mu_home']:.1f} — {model['mu_away']:.1f}")
+            if league=='nba':
+                st.caption('NBA: οι εκτιμήσεις παραμένουν υπό ιστορικό και μελλοντικό έλεγχο. Η νέα εκδοχή συγκρίνεται χωριστά και δεν αναθεωρεί τις παλιές εγγραφές.')
             if pace_mode:
                 st.caption('Πειραματική Normal προσέγγιση με προσαρμογή αναμενόμενων πόντων στις εκτιμώμενες κατοχές και την αποτελεσματικότητα. Βάρη ημιζωής 90 ημερών. Η αβεβαιότητα συνόλου και διαφοράς εκτιμάται χωριστά από τους ίδιους πρόσφατους αγώνες.')
                 st.dataframe([{'Ομάδα': game['teams'][side]['name'],
