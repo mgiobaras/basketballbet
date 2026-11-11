@@ -1,6 +1,16 @@
 # BasketballBet
 
-## NBA1 — 2025–2026 experiment
+## CLASSIC1 — επαναφορά κλασικού μοντέλου (11/11/2026)
+
+Ενεργή έκδοση **BASKET-2026-11-11-CLASSIC1**. Ο χρήστης ζήτησε άμεση επαναφορά του κλασικού υπολογισμού. Η εφαρμογή χρησιμοποιεί αποκλειστικά τους πραγματικούς πρόσφατους πόντους υπέρ/κατά, βάρη ημιζωής 90 ημερών και την αρχική ενιαία διακύμανση. Δεν καλούνται οι προσαρμογές κατοχών, total/margin uncertainty ή το πειραματικό NBA. Η επιλογή πειραματικού μοντέλου αφαιρέθηκε και παλιά αποτελέσματα συνεδρίας δεν χρησιμοποιούνται ως νέος κλασικός υπολογισμός.
+
+Παραμένει το ήδη ζητημένο έως 10 πρόσφατων αγώνων: με λιγότερους χρησιμοποιούνται οι διαθέσιμοι και εμφανίζεται το πλήθος, ώστε να συνεχίσει η ελληνική Basket League. Με πλήρες 10/10 οι αριθμητικοί τύποι και πιθανότητες συμφωνούν με το αρχικό κλασικό μοντέλο. Οι νέες εγγραφές φέρουν `basket-classic-restored-v1`. Οι παλιές πιθανότητες, επιλογές, γραμμές, τιμές και εκδόσεις παραμένουν ανέπαφες.
+
+Διατηρούνται οι δημόσιες πηγές δεδομένων/αποδόσεων, οι διορθώσεις ΕΣΑΚΕ/Paf/ονομάτων, οι κάρτες, η μόνιμη αποθήκευση, η ενημέρωση αποτελεσμάτων και η πλήρης ιδιωτική καταγραφή. Η ενότητα κύριων προτάσεων χρησιμοποιεί πάλι την κοινή πολιτική 70%/απόδοση ≥1,50/EV ≥3%, χωρίς το ειδικό μπλοκάρισμα του πειράματος NBA1. Η ιστορική δοκιμή παραμένει διαθέσιμη ως έρευνα και η επαναφορά δεν αποδεικνύει μελλοντική επιτυχία ή κερδοφορία.
+
+Πλήρες αντίγραφο πριν την επαναφορά: [backup/before-classic-restore-2026-11-11](https://github.com/mgiobaras/basketballbet/tree/backup/before-classic-restore-2026-11-11). Δεν απαιτούνται Secrets ή SQL. Έλεγχος ενεργής εφαρμογής: `python check_classic_restore.py`, `python check_basketball.py`, `python check_available_history.py`, `python check_history_ui.py`. Οι παρακάτω ενότητες περιγράφουν παλαιότερες εκδόσεις· οι πειραματικές προσαρμογές δεν είναι ενεργές στην CLASSIC1.
+
+## NBA1 — 2025–2026 experiment (αρχειοθετημένη λειτουργία)
 
 New optional opponent/home-adjusted NBA candidate with empirical residual calibration. It failed the historical recommendation gate and remains experimental, with classic still the default. Selecting the candidate records both variants on identical prices and input games. NBA primary tips are disabled unless a model passes the historical gate; calculations and manual choices remain available. No owner history is rewritten. See [historical results and reproduction](reports/NBA_2025_26_RESULTS.md).
 
