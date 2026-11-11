@@ -18,7 +18,7 @@ from paf_browser import browser_quotes
 from recommendations import apply_policy, show_recommendation
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-11-CLASSIC1'
+APP_VERSION = 'BASKET-2026-11-11-HISTORY-DATES1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -250,44 +250,59 @@ with history_tab:
             st.session_state['history_league'] = 'Σύνολο'
         selected_league = st.selectbox('Προβολή ιστορικού ανά διοργάνωση', options, key='history_league')
         records = all_records if selected_league == 'Σύνολο' else [r for r in all_records if r['fixture']['league'] == labels[selected_league]]
-        records = sorted(records, key=lambda r: history_order(r['fixture'].get('kickoff'), r.get('probability', {}).get('win')))
-        st.caption('Στατιστικά και ιστορικό: '+selected_league)
-        settled = [r for r in records if r['status'] in {'won', 'lost', 'push'}]
-        decided = [r for r in settled if r['status'] in {'won', 'lost'}]
-        wins = sum(r['status'] == 'won' for r in decided)
-        with st.container(key='history_counts'):
-            counts = st.columns(3)
-            counts[0].metric('Κερδισμένα', wins)
-            counts[1].metric('Χαμένα', len(decided)-wins)
-            counts[2].metric('Εκκρεμή', sum(r['status'] == 'pending' for r in records))
-        st.caption(f'Επιστροφές: {len(settled)-len(decided)} · εξαιρούνται από το ποσοστό επιτυχίας.')
-        profit = sum(r['profit'] for r in settled)
-        stake = sum(r['stake'] for r in settled)
-        cols = st.columns(4)
-        cols[0].metric('Επιτυχία (χωρίς επιστροφές)', f'{wins/len(decided):.1%}' if decided else '—')
-        cols[1].metric('Καθαρό κέρδος', f'{profit:+.2f} μονάδες')
-        cols[2].metric('ROI', f'{profit/stake:+.1%}' if stake else '—')
-        cols[3].metric('Δείγμα', f'{len(decided)} κρίθηκαν · {len(settled)-len(decided)} επιστροφές')
-        if records:
-            display = [{'Ημερομηνία': history_time(r['fixture']['kickoff']),
-                        'Αγώνας': r['fixture']['teams']['home']['name']+' — '+r['fixture']['teams']['away']['name'],
-                        'Αγορά': market_labels(r['fixture'])[r['market']],
-                        'Μοντέλο': r.get('model', {}).get('model_version', '—'),
-                        'Αρχική πιθανότητα μοντέλου': f"{r['probability']['win']:.1%}" if r.get('probability', {}).get('win') is not None else '—', 'Line': r['line'],
-                        'Απόδοση': r['odds'], 'Μονάδες': r['stake'],
-                        'Κατάσταση': {'won': 'Κερδισμένο', 'lost': 'Χαμένο', 'pending': 'Εκκρεμεί', 'push': 'Επιστροφή'}.get(r['status'], r['status']),
-                        'Σκορ με παράταση': r['score'],
-                        'Κέρδος': r['profit'], 'Πηγή': r['quote']['source'], 'Εταιρεία': r['quote'].get('bookmaker')} for r in records]
-            st.dataframe(display, hide_index=True, width='stretch', column_config={
-                'Αρχική πιθανότητα μοντέλου': st.column_config.TextColumn('Ποσοστό', help='Η αρχική πιθανότητα που αποθηκεύτηκε με την επιλογή.'),
-                'Ημερομηνία': st.column_config.TextColumn('Έναρξη (Ελλάδα)')})
-            st.download_button('Αντίγραφο όλων των επιλογών JSON', json.dumps(all_records, ensure_ascii=False, indent=2), 'basketball_backup.json', 'application/json')
-            buffer = io.StringIO()
-            writer = csv.DictWriter(buffer, fieldnames=list(display[0]))
-            writer.writeheader(); writer.writerows(display)
-            st.download_button('Εξαγωγή CSV', buffer.getvalue().encode('utf-8-sig'), 'basketball_bets.csv', 'text/csv')
+        history_days = [instant(r['fixture']['kickoff']).astimezone(ZoneInfo('Europe/Athens')).date() for r in all_records]
+        history_today = datetime.now(ZoneInfo('Europe/Athens')).date()
+        date_columns = st.columns(2)
+        history_from = date_columns[0].date_input('Από', min(history_days, default=history_today),
+                                                 format='DD/MM/YYYY', key='history_from')
+        history_to = date_columns[1].date_input('Έως', max(history_days, default=history_today),
+                                               format='DD/MM/YYYY', key='history_to')
+        st.caption('Το διάστημα περιλαμβάνει και τις δύο ημερομηνίες, βάσει έναρξης αγώνα σε ώρα Ελλάδας. Ο πίνακας και το CSV αφορούν το επιλεγμένο διάστημα· το αντίγραφο JSON περιλαμβάνει ολόκληρο το ιστορικό.')
+        if history_from is None or history_to is None:
+            st.warning('Επίλεξε και τις δύο ημερομηνίες για να υπολογιστούν τα στατιστικά.')
+        elif history_from > history_to:
+            st.warning('Η ημερομηνία «Από» πρέπει να είναι πριν ή ίδια με την «Έως».')
         else:
-            st.write('Δεν υπάρχουν αποθηκευμένες επιλογές για: '+selected_league)
+            records = [r for r in records if history_from <= instant(r['fixture']['kickoff']).astimezone(ZoneInfo('Europe/Athens')).date() <= history_to]
+            records = sorted(records, key=lambda r: history_order(r['fixture'].get('kickoff'), r.get('probability', {}).get('win')))
+            st.caption(f'Στατιστικά και ιστορικό: {selected_league} · {history_from:%d/%m/%Y}–{history_to:%d/%m/%Y}')
+            settled = [r for r in records if r['status'] in {'won', 'lost', 'push'}]
+            decided = [r for r in settled if r['status'] in {'won', 'lost'}]
+            wins = sum(r['status'] == 'won' for r in decided)
+            with st.container(key='history_counts'):
+                counts = st.columns(3)
+                counts[0].metric('Κερδισμένα', wins)
+                counts[1].metric('Χαμένα', len(decided)-wins)
+                counts[2].metric('Εκκρεμή', sum(r['status'] == 'pending' for r in records))
+            st.caption(f'Επιστροφές: {len(settled)-len(decided)} · εξαιρούνται από το ποσοστό επιτυχίας.')
+            profit = sum(r['profit'] for r in settled)
+            stake = sum(r['stake'] for r in settled)
+            cols = st.columns(4)
+            cols[0].metric('Επιτυχία (χωρίς επιστροφές)', f'{wins/len(decided):.1%}' if decided else '—')
+            cols[1].metric('Καθαρό κέρδος', f'{profit:+.2f} μονάδες')
+            cols[2].metric('ROI', f'{profit/stake:+.1%}' if stake else '—')
+            cols[3].metric('Δείγμα', f'{len(decided)} κρίθηκαν · {len(settled)-len(decided)} επιστροφές')
+            if records:
+                display = [{'Ημερομηνία': history_time(r['fixture']['kickoff']),
+                            'Αγώνας': r['fixture']['teams']['home']['name']+' — '+r['fixture']['teams']['away']['name'],
+                            'Αγορά': market_labels(r['fixture'])[r['market']],
+                            'Μοντέλο': r.get('model', {}).get('model_version', '—'),
+                            'Αρχική πιθανότητα μοντέλου': f"{r['probability']['win']:.1%}" if r.get('probability', {}).get('win') is not None else '—', 'Line': r['line'],
+                            'Απόδοση': r['odds'], 'Μονάδες': r['stake'],
+                            'Κατάσταση': {'won': 'Κερδισμένο', 'lost': 'Χαμένο', 'pending': 'Εκκρεμεί', 'push': 'Επιστροφή'}.get(r['status'], r['status']),
+                            'Σκορ με παράταση': r['score'],
+                            'Κέρδος': r['profit'], 'Πηγή': r['quote']['source'], 'Εταιρεία': r['quote'].get('bookmaker')} for r in records]
+                st.dataframe(display, hide_index=True, width='stretch', column_config={
+                    'Αρχική πιθανότητα μοντέλου': st.column_config.TextColumn('Ποσοστό', help='Η αρχική πιθανότητα που αποθηκεύτηκε με την επιλογή.'),
+                    'Ημερομηνία': st.column_config.TextColumn('Έναρξη (Ελλάδα)')})
+                buffer = io.StringIO()
+                writer = csv.DictWriter(buffer, fieldnames=list(display[0]))
+                writer.writeheader(); writer.writerows(display)
+                st.download_button('Εξαγωγή CSV επιλεγμένου διαστήματος', buffer.getvalue().encode('utf-8-sig'), f'basketball_bets_{history_from.isoformat()}_{history_to.isoformat()}.csv', 'text/csv')
+            else:
+                st.write('Δεν υπάρχουν αποθηκευμένες επιλογές για τη διοργάνωση και το επιλεγμένο διάστημα.')
+        if all_records:
+            st.download_button('Αντίγραφο όλων των επιλογών JSON', json.dumps(all_records, ensure_ascii=False, indent=2), 'basketball_backup.json', 'application/json')
         analysis_export(st, store, 'basketball')
     except (StorageError, DataError, ValueError) as error:
         st.error(str(error))
