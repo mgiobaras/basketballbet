@@ -16,9 +16,10 @@ from sports_ui import apply_theme, history_order, history_time
 from prediction_log import snapshot, quote_snapshot, flush_predictions, analysis_export, log_forecast
 from paf_browser import browser_quotes
 from recommendations import apply_policy, show_recommendation
+from player_absences import absence_inputs
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-11-HISTORY-DATES1'
+APP_VERSION = 'BASKET-2026-11-15-ABSENCES1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -143,7 +144,7 @@ with match_tab:
             st.info('Δεν βρέθηκαν επιβεβαιωμένες τιμές με τις αντίστοιχες γραμμές. Τα κενά δεν αντικαθίστανται με 1,90 ή υποθετικά lines.')
             if league in {'euroleague', 'nba'} and not setting('ODDS_API_KEY'):
                 st.info('Εναλλακτική αυτόματη πηγή: ενεργοποίησε το The Odds API προσθέτοντας ODDS_API_KEY στα Secrets του Streamlit. Διαθέτει δωρεάν πρόγραμμα με όριο χρήσης.')
-        absences = {}
+        absences = absence_inputs(st, data, game)
         st.session_state.pop('model_mode', None)
         st.caption('Μοντέλο: Κλασικό · πραγματικοί πρόσφατοι πόντοι υπέρ/κατά, χωρίς νεότερες προσαρμογές.')
         model_key = 'analysis:'+game['key']+':classic-restored1'

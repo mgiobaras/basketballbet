@@ -1,0 +1,157 @@
+{
+  "source_url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401909985",
+  "observed_at": "2026-11-15T13:33:43.332149+00:00",
+  "fixture": {
+    "key": "espn:401909985",
+    "id": "401909985",
+    "source": "espn",
+    "league": "nba",
+    "kickoff": "2026-11-15T18:00:00+00:00",
+    "status": "NS",
+    "teams": {
+      "home": {
+        "id": "espn:20",
+        "name": "Philadelphia 76ers"
+      },
+      "away": {
+        "id": "espn:11",
+        "name": "Indiana Pacers"
+      }
+    },
+    "score": {
+      "home": null,
+      "away": null
+    },
+    "source_url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401909985"
+  },
+  "data": {
+    "header": {
+      "id": "401909985",
+      "date": null,
+      "competitions": [
+        {
+          "date": "2026-11-15T18:00Z",
+          "status": {
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Sun, November 15th at 1:00 PM EST",
+              "shortDetail": "11/15 - 1:00 PM EST"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "20",
+                "displayName": "Philadelphia 76ers"
+              },
+              "score": null
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "11",
+                "displayName": "Indiana Pacers"
+              },
+              "score": null
+            }
+          ]
+        }
+      ]
+    },
+    "injuries": [
+      {
+        "team": {
+          "id": "20",
+          "displayName": "Philadelphia 76ers"
+        },
+        "injuries": [
+          {
+            "status": "Out",
+            "date": "2026-11-14T22:05Z",
+            "athlete": {
+              "id": "3059318",
+              "displayName": "Joel Embiid"
+            }
+          },
+          {
+            "status": "Out",
+            "date": "2026-11-12T16:37Z",
+            "athlete": {
+              "id": "4870562",
+              "displayName": "Dominick Barlow"
+            }
+          },
+          {
+            "status": "Out",
+            "date": "2026-11-12T16:36Z",
+            "athlete": {
+              "id": "5105637",
+              "displayName": "Adem Bona"
+            }
+          },
+          {
+            "status": "Out",
+            "date": "2026-10-06T19:17Z",
+            "athlete": {
+              "id": "4871141",
+              "displayName": "Ariel Hukporti"
+            }
+          }
+        ]
+      },
+      {
+        "team": {
+          "id": "11",
+          "displayName": "Indiana Pacers"
+        },
+        "injuries": [
+          {
+            "status": "Day-To-Day",
+            "date": "2026-11-15T01:14Z",
+            "athlete": {
+              "id": "4395712",
+              "displayName": "Andrew Nembhard"
+            }
+          },
+          {
+            "status": "Day-To-Day",
+            "date": "2026-11-14T21:23Z",
+            "athlete": {
+              "id": "2530530",
+              "displayName": "T.J. McConnell"
+            }
+          },
+          {
+            "status": "Day-To-Day",
+            "date": "2026-11-14T21:21Z",
+            "athlete": {
+              "id": "4396909",
+              "displayName": "Aaron Nesmith"
+            }
+          },
+          {
+            "status": "Out",
+            "date": "2026-11-11T22:29Z",
+            "athlete": {
+              "id": "4396993",
+              "displayName": "Tyrese Haliburton"
+            }
+          },
+          {
+            "status": "Out",
+            "date": "2026-10-30T19:06Z",
+            "athlete": {
+              "id": "5157066",
+              "displayName": "Johnny Furphy"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

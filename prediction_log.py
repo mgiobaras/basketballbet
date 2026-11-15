@@ -57,6 +57,9 @@ def queue_prediction(state, packet):
 def log_forecast(store, state, packet, calculation_key):
     """Log each calculation or changed price/decision, not ordinary UI reruns."""
     comparable = json.loads(json.dumps(packet['payload'], ensure_ascii=False, allow_nan=False))
+    for report in comparable.get('absences', {}).values():
+        if isinstance(report, dict):
+            report.pop('observed_at', None)
     for value in comparable['markets'].values():
         quote = value.get('quote')
         if quote:
