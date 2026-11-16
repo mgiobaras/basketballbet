@@ -70,6 +70,7 @@ def ui_check():
         'REQUIRE_REMOTE_DB':'false','APP_PASSWORD':'','ODDS_API_KEY':''}), \
          patch('basketball_data.BasketballData.fixtures',return_value=[f]), \
          patch('basketball_data.BasketballData.history',return_value=games), \
+         patch('basketball_data.BasketballData.alternative_quotes', return_value=([], [])), \
          patch('basketball_data.BasketballData.quotes',return_value=([q],[])):
         store = Store(directory+'/bets.sqlite3')
         old = dict(f,key='esake:old-selection')

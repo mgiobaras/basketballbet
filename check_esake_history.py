@@ -124,6 +124,7 @@ def ui_check(target,latest):
         'BET_DB_PATH':directory+'/ui.sqlite3','SUPABASE_URL':'','SUPABASE_SERVICE_ROLE_KEY':'',
         'REQUIRE_REMOTE_DB':'false','APP_PASSWORD':'','ODDS_API_KEY':''}), \
          patch('basketball_data.BasketballData.fixtures',return_value=[target]), \
+         patch('basketball_data.BasketballData.alternative_quotes', return_value=([], [])), \
          patch('basketball_data.BasketballData.quotes',return_value=([q],[])), \
          patch('basketball_data.Sofa.fixtures',side_effect=DataError('controlled403')), \
          patch('basketball_data.HTTP.text') as text:

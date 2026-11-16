@@ -44,16 +44,19 @@ class BrowserHTTP:
         return reply['data']
 
 
-def browser_quotes(st, store, game, refresh=0):
+def browser_quotes(st, store, game, refresh=0, all_lines=False):
     identity = [game['key'], game['league'], game['kickoff'], game['teams'], refresh]
+    if all_lines:
+        identity.append('all_lines')
     scope = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-    state = st.session_state.get('paf_browser_state')
+    state_key = 'paf_browser_alternatives_state' if all_lines else 'paf_browser_state'
+    state = st.session_state.get(state_key)
     if not state or state['scope'] != scope:
         state = {'scope': scope, 'responses': {}, 'pending': None}
-        st.session_state['paf_browser_state'] = state
+        st.session_state[state_key] = state
     provider = Paf(store, BrowserHTTP(state), cache_namespace='browser:'+scope+':')
     try:
-        quotes, notes = provider.quotes(game, refresh)
+        quotes, notes = provider.quotes(game, refresh, all_lines=all_lines)
     except PendingFetch as pending:
         request = state['pending']
         if not request or request['url'] != pending.url:

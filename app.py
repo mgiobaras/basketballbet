@@ -1,5 +1,6 @@
 """BasketballBet: automatic real data, observed last-ten model and persistent bets."""
 import csv
+import hashlib
 from datetime import datetime, timezone
 import io
 import json
@@ -17,9 +18,10 @@ from prediction_log import snapshot, quote_snapshot, flush_predictions, analysis
 from paf_browser import browser_quotes
 from recommendations import apply_policy, show_recommendation
 from player_absences import absence_inputs
+from alternative_lines import LINE_MARKETS, VERSION as ALTERNATIVE_VERSION, select_alternatives, alternative_policy
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = 'BASKET-2026-11-15-ABSENCES1'
+APP_VERSION = 'BASKET-2026-11-16-ALTERNATIVE-LINES1'
 st.set_page_config(page_title='BasketballBet', page_icon='🏀', layout='wide')
 apply_theme('basketball')
 st.title('🏀 BasketballBet')
@@ -106,7 +108,7 @@ with match_tab:
             quotes = []
             st.error(str(error))
         by_market = {q['market']: q for q in quotes}
-        st.subheader('Αυτόματες αποδόσεις, Over/Under και handicap')
+        st.subheader('Αποδόσεις αρχικών γραμμών')
         st.caption('Οι αγορές αφορούν τελικό σκορ μαζί με παράταση. Κάθε τιμή κρατά το δικό της line, εταιρεία και πηγή. Τα δημοσιευμένα snapshots μπορεί να έχουν αλλάξει στη στοιχηματική.')
         manual = st.checkbox('Χειροκίνητη καταχώριση / διόρθωση', key='manual:'+game['key'])
         company = st.text_input('Εταιρεία χειροκίνητων αποδόσεων', max_chars=100, key='company:'+game['key']).strip() if manual else ''
@@ -147,6 +149,9 @@ with match_tab:
         absences = absence_inputs(st, data, game)
         st.session_state.pop('model_mode', None)
         st.caption('Μοντέλο: Κλασικό · πραγματικοί πρόσφατοι πόντοι υπέρ/κατά, χωρίς νεότερες προσαρμογές.')
+        easier_lines = st.checkbox('Ευκολότερες γραμμές κοντά στο 1,70', value=True, key='easier_lines:'+game['key'])
+        if easier_lines:
+            st.caption('Αναζήτηση πραγματικών εναλλακτικών Paf: 2–5 πόντοι ευκολότερα, απόδοση 1,60–1,80 (προτίμηση 1,70) και εκτιμώμενο EV ≥3%. Αν δεν βρεθεί κατάλληλη τιμή, παραμένει η αρχική. Η αρχική και η εναλλακτική καταγράφονται χωριστά για αξιολόγηση.')
         model_key = 'analysis:'+game['key']+':classic-restored1'
         if st.button('Υπολογισμός με πραγματικά δεδομένα', type='primary'):
             st.session_state.pop(model_key, None)
@@ -180,6 +185,44 @@ with match_tab:
                 inputs=st.session_state.get(model_key+':inputs')), model_key)
             if warning and not log_warning:
                 st.warning(warning)
+            changes = {}
+            if easier_lines and LINE_MARKETS.intersection(offers):
+                try:
+                    alternate_quotes, notes = data.alternative_quotes(game, st.session_state.get(refresh_key, 0))
+                    failure = data.alternative_diagnostics.get('failed_request', {})
+                    if 'HTTP 410' in failure.get('error', ''):
+                        browser_found, browser_notes, diagnostic = browser_quotes(
+                            st, store, game, st.session_state.get(refresh_key, 0), all_lines=True)
+                        alternate_quotes = browser_found
+                        notes.extend(browser_notes)
+                        data.alternative_diagnostics = diagnostic
+                    data.errors.extend('Εναλλακτικές γραμμές: '+note for note in notes)
+                except StorageError as error:
+                    alternate_quotes = []
+                    st.warning(str(error))
+                offers, changes = select_alternatives(game, model, offers, alternate_quotes)
+                if changes:
+                    for market in changes:
+                        quote = offers[market]
+                        probability = distribution(model, market, quote['line'])
+                        markets[market] = {'line': quote['line'], 'probability': probability,
+                                           'raw_probability': probability, 'quote': quote_snapshot(quote)}
+                    policy = alternative_policy(game, markets)
+                    model = dict(model, recommendation_policy=policy,
+                                 alternative_lines={'version': ALTERNATIVE_VERSION, 'changes': changes})
+                    warning = log_forecast(store, st.session_state, snapshot('basketball', game, model, markets, absences,
+                        APP_VERSION, inputs=st.session_state.get(model_key+':inputs')), model_key+':alternatives')
+                    if warning and not log_warning:
+                        st.warning(warning)
+                    st.subheader('Ευκολότερες γραμμές για αποθήκευση')
+                    st.dataframe([{'Αγορά': game_labels[m], 'Αρχικό line': c['original_line'],
+                                   'Αρχική απόδοση': c['original_odds'], 'Νέο line': c['selected_line'],
+                                   'Νέα απόδοση': c['selected_odds'], 'Εταιρεία': offers[m]['bookmaker'],
+                                   'Πιθανότητα': f"{c['selected_probability']['win']:.1%}"}
+                                  for m, c in sorted(changes.items())], hide_index=True)
+                    st.caption('Οι υπολογισμοί και η αποθήκευση παρακάτω χρησιμοποιούν αυτές τις νέες γραμμές. Κλείσε την επιλογή «Ευκολότερες γραμμές» για τις αρχικές.')
+                else:
+                    st.caption('Δεν βρέθηκε κατάλληλη ευκολότερη γραμμή κοντά στο 1,70. Οι αρχικές γραμμές παραμένουν ενεργές.')
             counts = model['history_counts']
             st.caption('Ιστορικό που χρησιμοποιήθηκε: '+' · '.join(
                 f"{game['teams'][side]['name']}: {counts[side]}/10 αγώνες" for side in ['home', 'away']))
@@ -188,7 +231,12 @@ with match_tab:
             st.metric('Αναμενόμενοι πόντοι μοντέλου', f"{model['mu_home']:.1f} — {model['mu_away']:.1f}")
             st.caption('Κλασική Normal προσέγγιση από πραγματικούς πόντους υπέρ/κατά, με βάρη ημιζωής 90 ημερών. Χωρίς προσαρμογές κατοχών, αντιπάλων ή νεότερη μεταβολή αβεβαιότητας.')
             st.caption('Πηγές ιστορικού: '+', '.join(model['input_sources']))
-            show_recommendation(st, policy, game_labels)
+            recommendation_labels = dict(game_labels)
+            recommended = policy['recommended_market']
+            if recommended in offers and offers[recommended]['line'] is not None:
+                line = offers[recommended]['line']
+                recommendation_labels[recommended] += f' {line:+g}' if recommended.startswith('handicap') else f' {line:g}'
+            show_recommendation(st, policy, recommendation_labels)
             st.subheader('Όλοι οι υπολογισμοί')
             rows, distributions = [], {}
             for market, q in offers.items():
@@ -204,7 +252,13 @@ with match_tab:
             else:
                 st.info('Δεν υπάρχει ακόμη εκτιμήσιμη αβεβαιότητα ή έγκυρη γραμμή για αυτές τις αγορές. Τα διαθέσιμα ιστορικά σκορ δεν συμπληρώνονται με υποθετικές τιμές.')
             eligible = [m for m in distributions if offers[m]['odds'] >= 1.5]
-            chosen = st.multiselect('Επιλογές για αποθήκευση — 1 μονάδα η καθεμία', eligible, format_func=lambda m: game_labels[m], key='choices:'+game['key'])
+            # A quote/line switch clears selections before saving a different offer.
+            selection_key = hashlib.sha256(json.dumps({m: [offers[m].get(k) for k in
+                ['line', 'odds', 'bookmaker', 'source', 'source_market_id']] for m in eligible}, sort_keys=True).encode()).hexdigest()[:16]
+            chosen = st.multiselect('Επιλογές για αποθήκευση — 1 μονάδα η καθεμία', eligible,
+                format_func=lambda m: game_labels[m]+(f" {offers[m]['line']:+g}" if m.startswith('handicap') else f" {offers[m]['line']:g}" if m in {'over', 'under'} else '')
+                    +f" · {offers[m]['odds']:.2f}"+(' · εναλλακτική' if m in changes else ''), key='choices:'+game['key']+':'+selection_key)
+            st.caption('Αν αλλάξει η γραμμή, η απόδοση ή η εταιρεία, επίλεξε ξανά το σημείο πριν από την αποθήκευση.')
             can_save = game['status'] == 'NS' and instant(game['kickoff']) > datetime.now(timezone.utc) and (not manual or bool(company))
             if st.button('Αποθήκευση επιλογών', disabled=not chosen or not can_save):
                 try:
@@ -224,6 +278,10 @@ with match_tab:
                 st.download_button('Λήψη διαγνωστικών Paf',
                                    json.dumps(data.paf.diagnostics, ensure_ascii=False, indent=2),
                                    'paf_diagnostics.json', 'application/json')
+            if data.alternative_diagnostics:
+                st.download_button('Λήψη διαγνωστικών εναλλακτικών γραμμών',
+                                   json.dumps(data.alternative_diagnostics, ensure_ascii=False, indent=2),
+                                   'alternative_lines_diagnostics.json', 'application/json')
 
 with history_tab:
     st.subheader('Ιστορικό & αποτελέσματα')

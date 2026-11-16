@@ -151,6 +151,7 @@ def ui_check():
     with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'BET_DB_PATH': directory+'/bets.sqlite3', 'SUPABASE_URL': '', 'SUPABASE_SERVICE_ROLE_KEY': '', 'REQUIRE_REMOTE_DB': 'false', 'APP_PASSWORD': ''}), \
          patch('basketball_data.BasketballData.fixtures', return_value=[f]), \
          patch('basketball_data.BasketballData.history', return_value=h), \
+         patch('basketball_data.BasketballData.alternative_quotes', return_value=([], [])), \
          patch('basketball_data.BasketballData.quotes', return_value=([q], [])):
         app = AppTest.from_file(str(root/'app.py')).run(timeout=30)
         assert not app.exception
@@ -192,6 +193,9 @@ def ui_check():
         app.multiselect[0].select('under').run(timeout=30)
         assert next(b for b in app.button if b.label == 'Αποθήκευση επιλογών').disabled
         app.text_input[0].set_value('Controlled manual company').run(timeout=30)
+        # A changed quote/company clears the previous selection before saving.
+        assert app.multiselect[0].value == []
+        app.multiselect[0].select('under').run(timeout=30)
         save = next(b for b in app.button if b.label == 'Αποθήκευση επιλογών')
         assert not save.disabled
         save.click().run(timeout=30)

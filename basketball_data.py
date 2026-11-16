@@ -387,8 +387,8 @@ def paf_event(row, league):
             'kickoff': kickoff, 'status': 'NS', 'teams': {s: {'id': 'paf:'+s, 'name': names[s]} for s in names}}
 
 
-def paf_quotes(row, game, receipt, url):
-    """Kambi recorded schema: full-time overtime, open two-way main markets."""
+def paf_quotes(row, game, receipt, url, all_lines=False):
+    """Validate each open full-game pair; main markets remain the default."""
     native = paf_event(row, game['league'])
     if native is None or matching(game, [native], exact_time=True) is None:
         return []
@@ -433,6 +433,9 @@ def paf_quotes(row, game, receipt, url):
         candidates.setdefault(kind, []).append((priority, pair))
     quotes = []
     for values in candidates.values():
+        if all_lines:
+            quotes.extend(q for _, pair in values for q in pair)
+            continue
         main = [pair for priority, pair in values if priority]
         eligible = main or [pair for _, pair in values]
         # Several distinct lines without a single marked main line are ambiguous.
@@ -444,14 +447,14 @@ def paf_quotes(row, game, receipt, url):
 class Paf:
     BASE = 'https://eu-offering-api.kambicdn.com/offering/v2018/paf'
     PARAMS = {'lang': 'en_GB', 'market': 'GB', 'client_id': 2, 'channel_id': 1}
-    LEAGUES = {'euroleague', 'greece'}
+    LEAGUES = {'nba', 'euroleague', 'greece'}
 
     def __init__(self, store, http, cache_namespace=''):
         self.store, self.http = store, http
         self.cache_namespace = cache_namespace
         self.diagnostics = {}
 
-    def quotes(self, game, refresh=0):
+    def quotes(self, game, refresh=0, all_lines=False):
         if game['league'] not in self.LEAGUES or game['status'] != 'NS' or instant(game['kickoff']) <= datetime.now(timezone.utc):
             return [], []
         self.diagnostics = {'requested': {k: game[k] for k in ['key', 'league', 'kickoff', 'teams']},
@@ -511,9 +514,9 @@ class Paf:
         self.diagnostics['matched'] = {'event': row['event'], 'betOffers': (row.get('betOffers') or [])[:50]}
         event_id = row['event']['id']
         url = self.BASE+f'/betoffer/event/{event_id}.json'
-        quotes = paf_quotes(row, game, listing['receipt'], listing_url)
+        quotes = paf_quotes(row, game, listing['receipt'], listing_url, all_lines)
         notes = []
-        if len(quotes) < 6:
+        if all_lines or len(quotes) < 6:
             try:
                 details = self.store.cached(f'paf:{self.cache_namespace}event:v2:{event_id}:{refresh}', lambda: fetch(url), 90)
                 value = details['value']
@@ -542,8 +545,12 @@ class Paf:
                                         and o.get('type') in {'OT_ONE', 'OT_TWO'}})
                         raise DataError('Paf: δεν επιβεβαιώθηκε η ταυτότητα στη δεύτερη απάντηση. '
                                         f'Στοιχεία πηγής: {summary}. Ομάδες στις αγορές: {", ".join(names[:6]) or "δεν δόθηκαν"}.')
-                detailed = paf_quotes(dict(row, betOffers=value.get('betOffers') or []), game, details['receipt'], url)
-                quotes.extend(q for q in detailed if not any(old['market'] == q['market'] for old in quotes))
+                detailed = paf_quotes(dict(row, betOffers=value.get('betOffers') or []), game, details['receipt'], url, all_lines)
+                if all_lines:
+                    # A successful full book supersedes listing prices, including closures.
+                    quotes = detailed
+                else:
+                    quotes.extend(q for q in detailed if not any(old['market'] == q['market'] for old in quotes))
             except DataError as error:
                 notes.append(str(error))
         if not quotes and not notes:
@@ -779,6 +786,7 @@ class BasketballData:
         self.odds = TheOddsAPI(odds_key, store) if odds_key else None
         http = http or HTTP()
         self.paf = Paf(store, http)
+        self.alternative_diagnostics = {}
         self.adapters = {'espn': ESPN(http), 'sofascore': Sofa(http), 'euroleague': Euro(http), 'esake': Esake(store, http)}
         self.errors = []
 
@@ -898,6 +906,20 @@ class BasketballData:
         result = self.store.cached(f'quotes:v13:{scope}:{game["key"]}:{refresh}', snapshot, 90)
         self.paf.diagnostics = result['paf_diagnostics']
         return result['quotes'], result['errors']
+
+    def alternative_quotes(self, game, refresh=0):
+        """The same verified public Paf book, including its published alternate lines."""
+        identity_key = repr((game['key'], game['league'], game['kickoff'], game['teams'], refresh))
+        key = hashlib.sha256(identity_key.encode()).hexdigest()
+        def load():
+            try:
+                quotes, notes = self.paf.quotes(game, refresh, all_lines=True)
+            except DataError as error:
+                quotes, notes = [], [str(error)]
+            return {'quotes': quotes, 'notes': notes, 'diagnostics': self.paf.diagnostics}
+        result = self.store.cached('alternative-quotes:v1:'+key, load, 90)
+        self.alternative_diagnostics = result['diagnostics']
+        return result['quotes'], result['notes']
 
     def result(self, game):
         for source in [game['source']]+[s for s in self.order(game['league']) if s != game['source']]:

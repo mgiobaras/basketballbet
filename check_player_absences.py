@@ -72,6 +72,7 @@ def ui_check(target, reports):
          'SUPABASE_URL':'','SUPABASE_SERVICE_ROLE_KEY':'','REQUIRE_REMOTE_DB':'false','APP_PASSWORD':'','ODDS_API_KEY':''}), \
          patch('basketball_data.BasketballData.fixtures',return_value=[target]), \
          patch('basketball_data.BasketballData.history',return_value=games), \
+         patch('basketball_data.BasketballData.alternative_quotes', return_value=([], [])), \
          patch('basketball_data.BasketballData.quotes',return_value=([q],[])), \
          patch('player_absences.load_absences',return_value=(reports,[])) as source:
         store=Store(d+'/db.sqlite3')

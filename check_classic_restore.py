@@ -33,6 +33,7 @@ def main():
              'REQUIRE_REMOTE_DB': 'false', 'APP_PASSWORD': '', 'ODDS_API_KEY': ''}), \
              patch('basketball_data.BasketballData.fixtures', return_value=[target]), \
              patch('basketball_data.BasketballData.history', return_value=games), \
+             patch('basketball_data.BasketballData.alternative_quotes', return_value=([], [])), \
              patch('basketball_data.BasketballData.quotes', return_value=(quotes, [])), \
              patch('basketball_pace.analyse_pace', side_effect=AssertionError('Pace must be inactive')), \
              patch('basketball_adjustment.adjust_model', side_effect=AssertionError('Adjustment must be inactive')), \
